@@ -161,36 +161,36 @@ Paste your token and confirm. That's it!
 ### Package Management
 **Add a repository to install `.deb` & track:**
 ```bash
-dbp add <owner>/<repo>
+dbp -a <owner>/<repo>
 ```
 for exemple:
 ```bash
-dbp -a fastfetch-cli/fastfetch
+dbp -a Ruraam/Uraam
 ```
 
 **List tracked repositories**
 ```bash
-dbp list
+dbp -l
 ```
 **Remove a tracked repository**
 ```bash
-dbp remove <package-name>
+dbp -r <package-name>
 ```
 
 Prevent an app from updating**
 ```bash
-dbp pin <package-name>
+dbp -p <package-name>
 ```
 **Allow an app to update again**
 ```bash
-dbp unpin <package-name>
+dbp -n <package-name>
 ```
 
 
 ### Package Updates/Upgrade
 **Download and upgrade tracked packages with confirmation (with & without APT repository)**
 ```bash
-dbp upgrade [-y]
+dbp -u [-y]
 ```
 **Update debup via APT repository:**
 ```bash
@@ -202,14 +202,14 @@ sudo apt update && sudo apt upgrade debup
 Find & discover any GitHub project providing .deb packages compatible with your architecture and install it in one click:
 Search informations on a repository:
 ```bash
-dbp info <owner>/<repo>
+dbp -i <owner>/<repo>
 ```
-##### Example: dbp info fastfetch-cli/fastfetch
+##### Example: dbp -i Ruraam/Uraam
 
 ```bash
-dbp search <keyword>
+dbp -s <keyword>
 ```
-##### Example: [ `dbp search fastfetch`] 
+##### Example: [ `dbp -s uraam`] 
 **How it works:**
 
 Enter the package number from the list and press Enter. debup downloads the matching .deb, installs it via apt, and automatically adds it to your tracking list for future updates.
@@ -247,11 +247,11 @@ Prompted for purge configuration or not.
 
 or
 ```bash
-sudo apt remove debup 
+sudo apt remove debup [-y]
 ```
 **Remove package and clean configuration**
 ```bash
-sudo apt --purge debup
+sudo apt --purge debup [-y]
 ```
 
 ---
