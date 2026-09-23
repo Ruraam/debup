@@ -57,7 +57,7 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 * Securely store a personal GitHub token (`chmod 600`) to unlock 5,000 req/h for heavy searches and automated background update checks.
 
 **Native Bash completion**:
-* Autocompletion support for both `debup` and the `dbp` alias, featuring context-aware dynamic package suggestionsfor `remove`, `pin`, and `unpin`.
+* Autocompletion support for both `debup` and the `dbp` alias, featuring context-aware dynamic package suggestions for `remove`, `pin`, and `unpin`.
 
 **🛡️ Package Pinning** (`apt-mark hold`)
 * **Freeze package updates :** Lock specific packages to their current version using the `pin` (or `hold`) command to prevent unwanted updates.
