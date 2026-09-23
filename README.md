@@ -1,7 +1,7 @@
 <div align="center">
 <img src="https://api.iconify.design/lucide:package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
 <h1>debup</h1>
-<p><strong>The AUR-like CLI package manager for Debian/Ubuntu-based distributions, WSL, and Android Linux Terminals (AVF, Proot).</strong></p>
+<p><strong>The AUR-like CLI package manager for Debian/Ubuntu-based distributions, WSL & Android Linux Terminals (AVF, Proot debian/ubuntu).</strong></p>
 <p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from GitHub Releases via <strong>APT</strong>.</p>
 <p><em>No PPAs, no bloated sandboxes, no third-party repositories — just native <code>.deb</code> binaries fetched straight from upstream.</em></p>
 </div>
