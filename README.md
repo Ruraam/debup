@@ -281,5 +281,6 @@ sudo apt --purge debup [-y]
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ---
+> How to install .deb packages downloaded from Github on Debian Ubuntu based
 > How to automatically update .deb packages downloaded from GitHub on Debian Ubuntu based
 
