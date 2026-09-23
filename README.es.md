@@ -48,7 +48,7 @@ Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">re
 ¿Echas de menos la comodidad de AUR enDebian/Ubuntu? **debup** convierte GitHub Releases en tu repositorio personal de terceros estilo rolling-release.
 **Descubre, inspecciona, instala y actualiza paquetes Debian directamente desde GitHub Releases con la simplicidad de `apt`.**
 
-## ✨ Característicasprincipales
+## ✨ Características principales
 🔍 **Descubrir** [`dbp -s <consulta>`] :
 * Encuentra herramientas y aplicaciones directamente en GitHub sin salirde tu terminal, prefiltradas para repositorios compatibles con Debian.
 * Soporte para apuntar a versiones específicas durantela búsqueda e inspección: consulta y obtén etiquetas exactas directamente mediante el endpoint `/releases/tags/...` de la API de GitHub.
