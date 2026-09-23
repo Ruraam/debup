@@ -49,7 +49,7 @@ jobs:
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
           echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback"> ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" > ~/.gnupg/gpg.conf
           gpgconf --kill gpg-agent
 
           echo "$GPG_KEY" | gpg --batch --yes --import
@@ -59,7 +59,7 @@ jobs:
 
           mkdir -p public/conf
           cat <<EOF > public/conf/distributions
-          Origin:debup
+          Origin: debup
           Label: debup
           Codename: stable
           Architectures: amd64 arm64
@@ -69,9 +69,9 @@ jobs:
           EOF
 
           cd public
-          for deb in ../debs/*.deb;do
+          for deb in ../debs/*.deb; do
             if [ -f "$deb" ]; then
-            reprepro --ask-passphrase includedeb stable "$deb" ||reprepro includedeb stable "$deb"
+            reprepro --ask-passphrase includedeb stable "$deb" || reprepro includedeb stable "$deb"
             fi
           done
 
