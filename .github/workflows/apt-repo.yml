@@ -37,7 +37,7 @@ jobs:
           mkdir -p debs
           TAG="${{ github.event.release.tag_name }}"
           if [ -n "$TAG" ]; then
-            gh release download "$TAG" --pattern "*.deb"--dir debs/
+            gh release download "$TAG" --pattern "*.deb" --dir debs/
           else
             gh release download --pattern "*.deb" --dir debs/
           fi
