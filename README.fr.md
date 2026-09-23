@@ -4,7 +4,7 @@
 <h1>debup</h1>
 <p><strong>Le gestionnaire de paquets CLI façon AUR pour les distributions basées sur Debian/Ubuntu, Raspberry Pi, Docker, WSL et terminaux Linux Android (AVF, Proot debian/ubuntu).</strong></p>
 <p>Recherchez, découvrez, suivez, installez et mettez à jour des paquets<code>.deb</code> directement depuis les GitHub Releases via <strong>APT</strong>.</p>
-<p><em>AucunPPA, aucune sandbox lourde, aucun dépôt tiers — uniquement des binaires <code>.deb</code> natifs récupérés directement en amont.
+<p><em>Aucun PPA, aucune sandbox lourde, aucun dépôt tiers — uniquement des binaires <code>.deb</code> natifs récupérés directement en amont.
 Installation simple avec le <a href="#option-1-dépôt-apt-recommandé">dépôt APT</a> ou l'<a href="#option-2-installation-rapide-en-une-ligne">installateur en une ligne</a>.</em></p>
 
 </div>
