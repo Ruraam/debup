@@ -91,19 +91,23 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 ### Option 1: APT Repository (Recommended)
 *To install `debup` and receive automatic updates through APT:*
 
-1. **Create the keyrings directory**
+1. Install prerequisites
+```bash
+sudo apt update && sudo apt install -y curl gpg
+```
+2. **Create the keyrings directory**
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings
 ```
-2. **Download and install the GPG signing key**
+3. **Download and install the GPG signing key**
 ```bash
 sudo curl -fsSL https://ruraam.github.io/debup/debup.gpg -o /etc/apt/keyrings/debup.gpg
 ```
-3. **Add the official debup repository**
+4. **Add the official debup repository**
 ```bash
 echo "deb [signed-by=/etc/apt/keyrings/debup.gpg] https://ruraam.github.io/debup/ stable main" | sudo tee /etc/apt/sources.list.d/debup.list
 ```
-4. **Install debup**
+5. **Install debup**
 ```bash
 sudo apt update && sudo apt install debup
 ```
