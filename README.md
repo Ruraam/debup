@@ -34,8 +34,6 @@ Easy installation with <a href="#option-1-apt-repository-recommended">APT reposi
 
 </div>
 
-&nbsp; 
-
 <div align="center">
 
 | [Usage](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-usage) | [GitHub Token](https://github.com/Ruraam/debup/blob/main/README.md#-configure-a-github-token-optionnal--dbp-token-) | [Search & Install](https://github.com/Ruraam/debup/tree/main#-discover-search--install-packages--dbp-search) | [Uninstallation](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-uninstallation) |
