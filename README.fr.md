@@ -144,7 +144,7 @@ sudo dpkg -i debup.deb
 
 ---
 
-### 🔑 Configurer un jeton GitHub (optionnel) [ `dbp token` ]
+### 🔑 Configurer un jeton GitHub (optionnel) [ `dbp -t` ]
 
 Par défaut, GitHub limite les requêtes anonymes à 60requêtes/heure. L'ajout d'un jeton augmente cette limite à 5 000 requêtes/heure.
 
@@ -152,7 +152,11 @@ Par défaut, GitHub limite les requêtes anonymes à 60requêtes/heure. L'ajout 
 
 Rendez-vous sur GitHub > Settings > Developer settings > Personalaccess tokens > Tokens (classic) > Generate new token (aucune permission spécifique n'est requise, laissez tout décoché).
 
-**2. Lier le jeton à debup :**dbp tokenCollez votre jeton et confirmez. C'est tout !
+**2. Lier le jeton à debup :**
+```bash
+dbp -t
+```
+Collez votre jeton et confirmez. C'est tout !
 
 `debup` le détectera et l'utilisera automatiquement, passant votre limite à 5 000 requêtes par heure.
 
@@ -196,7 +200,7 @@ dbp -u [-y]
 ```bash
 sudo apt update && sudo apt upgrade debup
 ```
-### 🔍 Découvrir, rechercher et installer des paquets[ `dbp search`]
+### 🔍 Découvrir, rechercher et installer des paquets[ `dbp -s`]
 
 Trouvez et découvrez tout projet GitHub fournissant des paquets .deb compatibles avec votre architecture et installez-les en un clic :
 
@@ -229,7 +233,7 @@ Entrez le numéro du paquet dans la liste et appuyez sur Entrée. debup téléch
 
 ---
 
-## ⚙️Configuration
+## ⚙️ Configuration
 
 **Les sources suivies sont stockées dans :** [ `/etc/debup/sources.list` ]
 
