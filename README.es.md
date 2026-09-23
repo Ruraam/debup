@@ -269,3 +269,8 @@ sudo apt --purge debup [-y]
 ## 📄 Licencia
 
 Este proyectoestá bajo la licencia [GNU General Public License v3.0](LICENSE).
+
+---
+> Cómo instalar paquetes .deb descargados de GitHub en sistemas basados ​​en Debian o Ubuntu
+>
+> > Cómo actualizar automáticamente paquetes .deb descargados de GitHub en sistemas basados ​​en Debian o Ubuntu
