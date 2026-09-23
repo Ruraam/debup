@@ -112,7 +112,7 @@ sudo apt update && sudo apt install debup
 *If you just want to run the deb package installation directly via curl and apt:*
 
 ```bash
-curl -fsSL https://github.com/Ruraam/debup/releases/latest/download/debup_3.4.0_all.deb -o /tmp/debup.deb && sudo apt-get install -y /tmp/debup.deb && rm -f /tmp/debup.deb
+curl -fsSL https://github.com/Ruraam/debup/releases/latest/download/debup_3.4.1_all.deb -o /tmp/debup.deb && sudo apt-get install -y /tmp/debup.deb && rm -f /tmp/debup.deb
 ```
 
 ### 🛠️ Build it yourself from source
