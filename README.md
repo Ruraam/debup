@@ -12,12 +12,6 @@ Easy installation with <a href="#option-1-apt-repository-recommended">APT reposi
 <br/>
 
 <div align="center">
-<a href="README.md">🇬🇧 English</a> •
-<a href="README.fr.md">🇫🇷 Français</a> •
-<a href="README.es.md">🇪🇸 Español</a>
-</div>
-
-<div align="center">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="GPL v3"></a> &nbsp;
 <a href="https://debian.org"><img src="https://img.shields.io/badge/Platform-Debian%20%7C%20Ubuntu-red.svg" alt="Platform"></a> &nbsp;
 <ahref="#"><img src="https://img.shields.io/badge/Arch-all%20(any)-orange.svg" alt="Arch"></a> &nbsp;
@@ -31,6 +25,14 @@ Easy installation with <a href="#option-1-apt-repository-recommended">APT reposi
 </div>
 
 <br/>
+
+<div align="center">
+<a href="README.md">🇬🇧 English</a> •
+<a href="README.fr.md">🇫🇷 Français</a> •
+<a href="README.es.md">🇪🇸 Español</a>
+</div>
+
+&nbsp; 
 
 <div align="center">
 
