@@ -27,9 +27,11 @@ Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">re
 <br/>
 
 <div align="center">
-<a href="README.md">🇬🇧 English</a> •
-<a href="README.fr.md">🇫🇷 Français</a> •
-<a href="README.es.md">🇪🇸 Español</a>
+
+<a href="README.md"><img src="https://api.iconify.design/circle-flags:gb.svg" width="16" height="16" alt="English" style="vertical-align: middle;"> English</a> &nbsp;•&nbsp;
+<a href="README.fr.md"><img src="https://api.iconify.design/circle-flags:fr.svg" width="16" height="16" alt="Français" style="vertical-align: middle;"> Français</a> &nbsp;•&nbsp;
+<a href="README.es.md"><img src="https://api.iconify.design/circle-flags:es.svg" width="16" height="16" alt="Español" style="vertical-align: middle;"> Español</a>
+
 </div>
 
 <div align="center">
