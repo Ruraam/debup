@@ -4,7 +4,7 @@
 <p><strong>The AUR-like CLI package manager for Debian/Ubuntu-based distributions, WSL & Android Linux Terminals (AVF, Proot debian/ubuntu).</strong></p>
 <p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from GitHub Releases via <strong>APT</strong>.</p>
 <p><em>No PPAs, no bloated sandboxes, no third-party repositories — just native <code>.deb</code> binaries fetched straight from upstream.</em></p>
-<p><em>Ezsy installation with [APT repository](https://github.com/Ruraam/debup/tree/main#option-1-apt-repository-recommended) or [One-line installer](https://github.com/Ruraam/debup/tree/main#option-2-quick-one-liner).
+<p><em>Ezsy installation with [APT repository](https://github.com/Ruraam/debup/tree/main#option-1-apt-repository-recommended) or [One-line installer](https://github.com/Ruraam/debup/tree/main#option-2-quick-one-liner).</em></p>
 </div>
 
 <br/>
