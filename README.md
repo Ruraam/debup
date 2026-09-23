@@ -279,3 +279,7 @@ sudo apt --purge debup [-y]
 ## 📄 License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
+
+---
+*#How to automatically update .deb packages downloaded from GitHub on Debian
+
