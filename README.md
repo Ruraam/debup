@@ -39,21 +39,21 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 **Discover, inspect, install, and update Debian packages directly from GitHub Releases with the simplicity of `apt`.**
 
 ## ✨ Core Features
-🔍 **Discover** [`dbp search <query>`] :
+🔍 **Discover** [`dbp -s <query>`] :
 * Find tools and applications directly on GitHub without leaving your terminal, pre-filtered for Debian-compatible repositories.
 * Supports release targeting during search & info inspections: fetch and query exact tags directly via GitHub API's `/releases/tags/...` endpoint.
 
-📦 **Direct Add** [`dbp add <owner/repo>`]:
+📦 **Direct Add** [`dbp -a <owner/repo>`]:
 * No need to hunt down release URLs. Point to any repository, and debup detects, matches your architecture (`amd64` / `arm64`), downloads, and installs the right `.deb`.
 * Supports version pins on installation: `dbp -a owner/repo@vX.Y.Z`
 
-ℹ️ **Inspect** [`dbp info <owner/repo>`]:
+ℹ️ **Inspect** [`dbp -i <owner/repo>`]:
 * Preview metadata before touching your system (stars, license, description, latest release, asset architecture compatibility).
 
 🔄 **Native APT Lifecycle**:
-* Seamlessly install, update [`dbp upgrade`], and remove [`dbp remove`] tracked packages using your system's native APT engine.
+* Seamlessly install, update [`dbp -u `], and remove [`dbp -r`] tracked packages using your system's native APT engine.
 
-⚡ **High-Rate API Tracking** [`dbp token`]:
+⚡ **High-Rate API Tracking** [`dbp -t`]:
 * Securely store a personal GitHub token (`chmod 600`) to unlock 5,000 req/h for heavy searches and automated background update checks.
 
 **Native Bash completion**:
