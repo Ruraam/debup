@@ -70,7 +70,7 @@ SOURCES_LIST="/etc/apt/sources.list.d/debup.list"
 
 echo -e "${CYAN}[*] Importing GPG signing key...${NC}"
 elevate mkdir -p "$KEYRING_DIR"
-curl -fsSL https://ruraam.github.io/debup/debup-archive-keyring.gpg | elevate gpg--dearmor -o "$KEYRING_PATH" --yes
+curl -fsSL https://ruraam.github.io/debup/debup.gpg | elevate gpg--dearmor -o "$KEYRING_PATH" --yes
 
 echo -e "${CYAN}[*] Configuring repository sources list...${NC}"
 echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | elevate tee "$SOURCES_LIST" > /dev/null
