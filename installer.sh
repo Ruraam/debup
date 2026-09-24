@@ -61,23 +61,23 @@ case "$choice" in
 # ==========================================================
 echo -e "${CYAN}[*] Setting up official Debup APT repository...${NC}"
 
-elevate apt-get update -qq
-elevate apt-get install -y -qq curl gnupg lsb-release >/dev/null
+sudo apt update -qq
+sudo apt install -y -qq curl gnupg lsb-release >/dev/null
 
 KEYRING_DIR="/etc/apt/keyrings"
 KEYRING_PATH="${KEYRING_DIR}/debup.gpg"
 SOURCES_LIST="/etc/apt/sources.list.d/debup.list"
 
 echo -e "${CYAN}[*] Importing GPG signing key...${NC}"
-elevate mkdir -p "$KEYRING_DIR"
-curl -fsSL https://ruraam.github.io/debup/debup.gpg | elevate gpg--dearmor -o "$KEYRING_PATH" --yes
+sudo mkdir -p "$KEYRING_DIR"
+curl -fsSL https://ruraam.github.io/debup/debup.gpg | sudo gpg--dearmor -o "$KEYRING_PATH" --yes
 
 echo -e "${CYAN}[*] Configuring repository sources list...${NC}"
-echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | elevate tee "$SOURCES_LIST" >/dev/null
+echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | sudo tee "$SOURCES_LIST" >/dev/null
 
 echo -e "${CYAN}[*] Refreshing package lists and installing debup...${NC}"
-elevate apt-get update -qq
-elevate apt-get install -y debup
+sudo apt update -qq
+sudo apt install -y debup
 
 echo -e "\n${GREEN}✔ Debup was installed successfully via the official APT repository!${NC}"
 echo -e "You will now receive seamless updates whenever you run ${CYAN}apt upgrade${NC}."
@@ -97,7 +97,7 @@ RELEASE_JSON=$(curl -sSL -H "User-Agent: debup-installer" "$API_URL")
 
 if ! command -v jq >/dev/null 2>&1; then
 echo -e "${YELLOW}[!] 'jq' is missing. Installing jq temporarily...${NC}"
-elevate apt-get update -qq && elevate apt-get install -y -qq jq >/dev/null
+sudo apt update -qq && sudo apt install -y -qq jq >/dev/null
 fi
 
 LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name // empty' 2>/dev/null)
@@ -124,7 +124,7 @@ echo -e "${BLUE}[*] Downloading package:${NC} ${GRAY}${DEB_URL}${NC}"
 curl -L --progress-bar -o "$DEB_FILE" "$DEB_URL"
 
 echo -e "${BLUE}[*] Installing package using APT...${NC}"
-elevate apt-get install -y "$DEB_FILE"
+sudo apt install -y "$DEB_FILE"
 
 echo -e "\n${GREEN}✔ debup ${LATEST_TAG} has been installed successfully!${NC}"
 ;;
@@ -167,7 +167,7 @@ install_choice=${install_choice:-Y}
 
 if [[ "$install_choice" =~ ^[YyOosSjJ]$ ]]; then
 echo -e "${BLUE}[*] Installing generated package...${NC}"
-elevate apt-get install -y ./debup.deb
+sudo apt install -y ./debup.deb
 echo -e "\n${GREEN}✔ debup has been installed successfully!${NC}"
 else
 echo -e "${YELLOW}[i] Installation skipped.${NC}"
