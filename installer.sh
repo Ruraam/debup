@@ -104,6 +104,7 @@ LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name // empty' 2>/dev/null)
 
 if [ -z "$LATEST_TAG" ]; then
 echo -e "${RED}Error: Unable to fetch release information from GitHub API.${NC}"
+clear
 exit 1
 fi
 
@@ -174,11 +175,15 @@ fi
 
 4)
 echo -e "${CYAN}Installation aborted by user.${NC}"
+sleep 2
+clear
 exit 0
 ;;
 
 *)
 echo -e "${RED}Invalid option selected. Exiting.${NC}"
+sleep 2
+clear
 exit 1
 ;;
 esac
