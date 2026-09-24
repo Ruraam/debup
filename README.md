@@ -95,6 +95,12 @@ Run the automated installer wizard to choose your preferred setup method (APT Re
 ```bash
 curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash
 ```
+<div align="center">
+<img src="install-proot.jpg" width="200">
+ 
+<em>Installer on Proot Debian</em>
+</div>
+
 ---
 *(Or choose one of the manual installation methods below)*
 
