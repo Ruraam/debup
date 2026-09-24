@@ -88,6 +88,16 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 ---
 
 ## 📦 Installation
+
+### ⚡ Quick Interactive Setup
+
+Run the automated installer wizard to choose your preferred setup method (APT Repository, Latest Release, or Build from source):
+```bash
+curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash
+```
+---
+*(Or choose one of the manual installation methods below)*
+
 ### Option 1: APT Repository (Recommended)
 *To install `debup` and receive automatic updates through APT:*
 
