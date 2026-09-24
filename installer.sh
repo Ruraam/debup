@@ -65,7 +65,7 @@ elevate apt-get update -qq
 elevate apt-get install -y -qq curl gnupg lsb-release >/dev/null
 
 KEYRING_DIR="/etc/apt/keyrings"
-KEYRING_PATH="${KEYRING_DIR}/debup-archive-keyring.gpg"
+KEYRING_PATH="${KEYRING_DIR}/debup.gpg"
 SOURCES_LIST="/etc/apt/sources.list.d/debup.list"
 
 echo -e "${CYAN}[*] Importing GPG signing key...${NC}"
@@ -73,7 +73,7 @@ elevate mkdir -p "$KEYRING_DIR"
 curl -fsSL https://ruraam.github.io/debup/debup.gpg | elevate gpg--dearmor -o "$KEYRING_PATH" --yes
 
 echo -e "${CYAN}[*] Configuring repository sources list...${NC}"
-echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | elevate tee "$SOURCES_LIST" > /dev/null
+echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | elevate tee "$SOURCES_LIST" >/dev/null
 
 echo -e "${CYAN}[*] Refreshing package lists and installing debup...${NC}"
 elevate apt-get update -qq
@@ -95,7 +95,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT INT TERM
 API_URL="https://api.github.com/repos/Ruraam/debup/releases/latest"
 RELEASE_JSON=$(curl -sSL -H "User-Agent: debup-installer" "$API_URL")
 
-if ! command -v jq >/dev/null2>&1; then
+if ! command -v jq >/dev/null 2>&1; then
 echo -e "${YELLOW}[!] 'jq' is missing. Installing jq temporarily...${NC}"
 elevate apt-get update -qq && elevate apt-get install -y -qq jq >/dev/null
 fi
