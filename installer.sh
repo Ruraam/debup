@@ -104,6 +104,7 @@ LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name // empty' 2>/dev/null)
 
 if [ -z "$LATEST_TAG" ]; then
 echo -e "${RED}Error: Unable to fetch release information from GitHub API.${NC}"
+sleep 3
 clear
 exit 1
 fi
@@ -114,6 +115,7 @@ DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".de
 
 if [ -z "$DEB_URL" ]; then
 echo-e "${RED}Error: No .deb package found in release ${LATEST_TAG}.${NC}"
+sleep 3
 exit 1
 fi
 
@@ -175,14 +177,14 @@ fi
 
 4)
 echo -e "${CYAN}Installation aborted by user.${NC}"
-sleep 2
+sleep 3
 clear
 exit 0
 ;;
 
 *)
 echo -e "${RED}Invalid option selected. Exiting.${NC}"
-sleep 2
+sleep 3
 clear
 exit 1
 ;;
