@@ -118,52 +118,6 @@ curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash 
 sudo install -m 0755 -d /etc/apt/keyrings 
 ```
 
-2.**Télécharger et installer la clé de signature GPG**
-```bash
-sudo curl -fsSL https://ruraam.github.io/debup/debup.gpg -o /etc/apt/keyrings/debup.gpg
-```
-3.**Ajouter le dépôt officiel de debup**
-```bash
-echo "deb[signed-by=/etc/apt/keyrings/debup.gpg] https://ruraam.github.io/debup/ stable main"| sudo tee /etc/apt/sources.list.d/debup.list
-```
-4.**Installer debup**
-```bash
-sudo apt update && sudo apt install debup
-```
-### Option 2: Installation rapide en une ligne
-*Si vous souhaitez simplement lancer l'installation du paquet deb directement via curl et apt :*
-```bash
-curl -fsSL https://github.com/Ruraam/debup/releases/latest/download/debup_3.4.0_all.deb -o /tmp/debup.deb && sudo apt-get install -y /tmp/debup.deb && rm -f /tmp/debup.deb
-```
-### 🛠️ Compiler soi-même depuis les sources
-*Si vous préférez inspecter le codesource et compiler le paquet `.deb` manuellement :*
-
-1. **Cloner le dépôt :**
-```bash
-git clone https://github.com/Ruraam/debup.git
-cd debup
-```
-2. **S'assurer des bonnes permissions de fichiers :**
-```bash
-chmod 755 debup-pkg/DEBIAN/postinst debup-pkg/DEBIAN/postrm
-chmod 755 debup-pkg/usr/local/bin/debup3.
-```
-**Construire le paquet `.deb` :**
-```bash
-dpkg-deb--build --root-owner-group debup-pkg debup.deb4. **L'installer :**
-```
-Via Apt (recommandé pour la gestion des dépendances) :
-```bash
-sudo apt install -y ./debup.deb
-```
-
-ou
-
-Via dpkg :
-```bash
-sudo dpkg -i debup.deb
-```
-
 ---
 
 ### 🔑 Configurer un jeton GitHub (optionnel) [ `dbp -t` ]
