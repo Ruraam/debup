@@ -81,9 +81,9 @@ Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">re
 ***Arquitecturas flexibles:** Coincidencia con nombres estándar y alias:
 * **x86_64:** `amd64`, `x86_64`, `x86-64`, `x64`, `all`
 ***ARM64:** `arm64`, `aarch64`, `armv8`, `arm64v8`, `all`
-* **Protección entre arquitecturas :** Filtra activamente archivos incompatibles (por ejemplo, evitadescargar `arm64` en equipos `amd64`).
+* **Protección entre arquitecturas :** Filtra activamente archivos incompatibles (por ejemplo, evita descargar `arm64` en equipos `amd64`).
 * **Priorización de distribuciones :** Prefiere compilaciones específicas para la distro (`debian` vs `ubuntu`) cuando hay múltiples paquetes compatibles disponibles.
-* **Respaldo seguro :** Cancela la ejecución limpiamente con una advertencia explícita si no existe ningún paquete compatible con laarquitectura de tu procesador.
+* **Respaldo seguro :** Cancela la ejecución limpiamente con una advertencia explícita si no existe ningún paquete compatible con la arquitectura de tu procesador.
 
 ---
 
