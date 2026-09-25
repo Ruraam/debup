@@ -108,17 +108,6 @@ curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash 
 </div>
 
 ---
-*(Ou choisissez l'une des méthodes d'installation manuelle ci-dessous)*
-
-### Option 1 :Dépôt APT (Recommandé)
-*Pour installer `debup` et recevoir les mises à jour automatiques via APT :*
-
-1. **Créer le répertoire des trousseaux de clés**
-```bash
-sudo install -m 0755 -d /etc/apt/keyrings 
-```
-
----
 
 ### 🔑 Configurer un jeton GitHub (optionnel) [ `dbp -t` ]
 
