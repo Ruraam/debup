@@ -89,11 +89,18 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 
 ## 📦 Installation
 
-### ⚡ Quick Interactive Setup
+### ⚡ Quick Interactive/Non-Interactive Setup
+**Zero-Trust Installer:** Features automated fail-closed GPG fingerprint validation, SHA-256 integrity verification, and full support for both interactive prompts and headlessn on-interactive deployments (`-y` / CI/CD).
 
-Run the automated installer wizard to choose your preferred setup method (APT Repository, Latest Release, or Build from source):
+Run the interactive installer wizard to choose your preferred setup method (APT Repository, Latest Release, or Build from source):
 ```bash
 curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash
+```
+&nbsp;
+
+Run with the `-y` flag for fully automated setups (defaulting to the recommended APT repository method without prompts):
+```bash
+curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash -s -- -y
 ```
 <div align="center">
 <img src="assets/installer_menu.jpg" width="200">
