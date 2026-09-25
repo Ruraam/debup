@@ -2,7 +2,7 @@
 
 <img src="https://api.iconify.design/lucide:package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
 <h1>debup</h1>
-<p><strong>El gestor de paquetes CLI tipo AUR para distribuciones basadas en Debian/Ubuntu, Raspberry Pi, Docker, WSL y terminales Linux de Android (AVF, Proot Debian/Ubuntu).</strong></p>
+<p><strong>debup gestor de paquetes : El eslabón perdido entre GitHub y APT para distribuciones basadas en Debian/Ubuntu, Raspberry Pi, Docker, WSL y terminales Linux de Android (AVF, Proot Debian/Ubuntu).</strong></p>
 <p>Busca, descubre, rastrea, instala y actualiza paquetes <code>.deb</code> directamente desde GitHubReleases a través de <strong>APT</strong>.</p>
 <p><em>Sin PPAs, sin sandboxes pesados, sin repositorios de terceros — solo binarios <code>.deb</code> nativos descargados directamente desde la fuente original.
 Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">repositorio APT</a> o el<a href="#opción-2-instalador-rápido-de-una-sola-línea">instalador deuna sola línea</a>.</em></p>
