@@ -100,7 +100,7 @@ curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bas
 
 Run with the `-y` flag for fully automated setups (defaulting to the recommended APT repository method without prompts):
 ```bash
-curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash -s -- -y
+curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash -s -- -y
 ```
 <div align="center">
 <img src="assets/installer_menu1.jpg" width="200">
