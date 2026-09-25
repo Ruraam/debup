@@ -88,6 +88,28 @@ La simplicité d'AUR vous manque sur Debian/Ubuntu ? **debup** transforme les Gi
 ---
 
 ## 📦 Installation
+### ⚡ Installation Rapide Interactive / Non-Interactive
+**Installateur Zero-Trust :** Intègre une validation stricte de l'empreinte GPG en fail-closed, un contrôle d'intégrité SHA-256, ainsi qu'un support complet pour l'installation interactive ou automatisée sans intervention (`-y` / CI/CD).
+
+Lancez l'assistant d'installation interactif pour choisir votre méthode préférée (Dépôt APT,Dernière Release ou Compilation depuis les sources)
+```bash
+curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash
+```
+&nbsp; 
+
+Utilisez l'option `-y` pour une installation entièrement automatisée (installe le dépôt officiel APT par défaut sans intervention):
+```bash
+curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash -s -- -y
+```
+<div align="center">
+
+<img src="assets/installer_menu1.jpg" width="200">
+
+</div>
+
+---
+*(Ou choisissez l'une des méthodes d'installation manuelle ci-dessous)*
+
 ### Option 1 :Dépôt APT (Recommandé)
 *Pour installer `debup` et recevoir les mises à jour automatiques via APT :*
 
