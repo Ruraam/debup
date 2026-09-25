@@ -88,6 +88,28 @@ Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">re
 ---
 
 ## 📦 Instalación
+
+### ⚡ Instalación Rápida Interactiva / No Interactiva
+**Instalador Zero-Trust:** Cuenta con validación estricta de huella GPG (fail-closed), verificación de integridad SHA-256 y soporte completo para instalación interactiva o desatendida sin intervención (`-y` / CI/CD).
+
+Ejecuta el asistente interactivo para elegir tu método preferido (Repositorio APT, Última Release o Compilación desde fuentes):
+```bash
+curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash
+```
+&nbsp; 
+
+Usa la opción `-y` para una instalación totalmente automatizada (instala el repositorio oficial APT por defecto sin confirmaciones):
+```bash
+curl -sSLhttps://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash -s -- -y
+```
+<div align="center">
+<img src="assets/installer_menu1.jpg" width="200">
+
+</div>
+
+---
+*(O elige uno de los métodos de instalación manual acontinuación)*
+
 ### Opción 1: Repositorio APT (Recomendado)
 *Para instalar `debup` y recibir actualizaciones automáticas mediante APT:*
 
