@@ -103,7 +103,7 @@ Run with the `-y` flag for fully automated setups (defaulting to the recommended
 curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/install.sh | bash -s -- -y
 ```
 <div align="center">
-<img src="assets/installer_menu.jpg" width="200">
+<img src="assets/installer_menu1.jpg" width="200">
  
 </div>
 
