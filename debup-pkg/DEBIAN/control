@@ -5,6 +5,7 @@ Priority: optional
 Architecture: all
 Maintainer: Ruraam <contact@github.com>
 Depends: bash (>= 4.0), curl, jq
-Description: A command-line (CLI) DEB package manager for Github Releases,
+Description: A command-line (CLI) APT/Github hybrid package manager
+ for Github Releases,
  Search, discover, add a Git repository, check for new versions,
  and perform updates or installations via APT.
