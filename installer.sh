@@ -66,10 +66,10 @@ echo -e "${BLUE}[*] Verifying package integrity (SHA-256)...${NC}"
 local deb_name expected actual
 deb_name=$(basename "$deb_file")
 
-expected=$(curl -fsSL "$sha_url" 2>/dev/null | grep -F "$deb_name" | awk '{print $1}' | head -n1)
+expected=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 "$sha_url" 2>/dev/null | grep -F "$deb_name" | awk '{print $1}' | head -n1)
 
 if [[ -z "$expected" ]]; then
-expected=$(curl -fsSL "$sha_url" 2>/dev/null | head -n1 | awk '{print $1}')
+expected=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 "$sha_url" 2>/dev/null | head -n1 | awk '{print $1}')
 fi
 
 actual=$(sha256sum "$deb_file" | awk '{print $1}')
@@ -85,15 +85,6 @@ else
 echo -e "${YELLOW}[!] Unable to parse checksum from ${sha_url}. Skipping check.${NC}"
 fi
 }
-
-BOLD='\033[1m'
-RED='\033[1;31m'
-GREEN='\033[1;32m'
-BLUE='\033[1;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-GRAY='\033[0;90m'
-NC='\033[0m'
 
 if [[ "$NON_INTERACTIVE" == false ]]; then
 clear
@@ -147,9 +138,6 @@ choice=1
 fi
 
 echo -e "${BLUE}------------------------------------------------------------${NC}"
-
-case "$choice" in
-1)
 # ==========================================================
 # OPTION 1: Add APT Repository + GPG Key
 # ==========================================================
@@ -253,11 +241,11 @@ fi
 REPO_DIR="$TARGET_DIR"
 fi
 
-echo -e "${BLUE}[*] Configuring filepermissions...${NC}"
+echo -e "${BLUE}[*] Configuring file permissions...${NC}"
 chmod 755 debup-pkg/DEBIAN/postinst debup-pkg/DEBIAN/postrm 2>/dev/null || true
 chmod 755 debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp 2>/dev/null || true
 
-echo -e "${BLUE}[*] Compiling .debpackage with dpkg-deb...${NC}"
+echo -e "${BLUE}[*] Compiling .deb package with dpkg-deb...${NC}"
 dpkg-deb --build --root-owner-group debup-pkg debup.deb
 
 echo -e "\n${GREEN}✔ Package built successfully: ${REPO_DIR}/debup.deb${NC}\n"
@@ -278,6 +266,10 @@ echo -e "${YELLOW}[i] Installation skipped.${NC}"
 echo -e "You can manually install it anytime with: ${CYAN}sudo apt install ${REPO_DIR}/debup.deb${NC}"
 fi
 ;;
+
+case "$choice" in
+1)
+
 
 4)
 echo -e "${CYAN}Installation aborted by user.${NC}"
