@@ -138,9 +138,12 @@ choice=1
 fi
 
 echo -e "${BLUE}------------------------------------------------------------${NC}"
-# ==========================================================
+
+#  ==========================================================
 # OPTION 1: Add APT Repository + GPG Key
 # ==========================================================
+case "$choice" in
+1)
 echo -e "${CYAN}[*] Setting up official Debup APT repository...${NC}"
 
 sudo apt-get update -qq
@@ -266,10 +269,6 @@ echo -e "${YELLOW}[i] Installation skipped.${NC}"
 echo -e "You can manually install it anytime with: ${CYAN}sudo apt install ${REPO_DIR}/debup.deb${NC}"
 fi
 ;;
-
-case "$choice" in
-1)
-
 
 4)
 echo -e "${CYAN}Installation aborted by user.${NC}"
