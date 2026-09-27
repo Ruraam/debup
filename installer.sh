@@ -216,7 +216,7 @@ echo -e "${BLUE}[*] Downloading package:${NC} ${GRAY}${DEB_URL}${NC}"
 curl -L --progress-bar -o "$DEB_FILE" "$DEB_URL"
 
 # Checksum verification (SHA-256)
-SHA_URL=$(echo "$RELEASE_JSON" | jq -r'.assets[] | select(.name | test("sha256|SHA256|checksums"; "i")) | .browser_download_url' | head -n1)
+SHA_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("sha256|SHA256|checksums"; "i")) | .browser_download_url' | head -n1)
 verify_sha256 "$DEB_FILE" "$SHA_URL"
 
 echo -e "${BLUE}[*] Installing package using APT...${NC}"
