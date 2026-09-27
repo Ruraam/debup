@@ -238,10 +238,6 @@ Enter the package number from the list and press Enter. debup downloads the matc
 ## Short CLI flag aliases: Standard single-letter POSIX flags for streamlined terminal workflows:
 [-a : add / install] [-u : update / upgrade] [-r : remove] [-p : pin] [-n : unpin] [-s : search] [-i : info / show] [-l :list] [-t : token / auth]
 
->|
->**💡 Tip:** Combine official repos and GitHub releases by aliasing `sudo apt update && sudo apt upgrade -y && dbp upgrade` in your `~/.bashrc`.
->|
-
 ---
 
 ## ⚙️ Configuration
