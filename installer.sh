@@ -203,7 +203,7 @@ fi
 
 echo -e "Latest detected release: ${GREEN}${LATEST_TAG}${NC}"
 
-DEB_URL=$(echo "$RELEASE_JSON" | jq -r'.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
+DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
 
 if [ -z "$DEB_URL" ]; then
 echo -e "${RED}Error: No .deb package found in release ${LATEST_TAG}.${NC}"
