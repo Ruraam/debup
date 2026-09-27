@@ -112,7 +112,7 @@ La simplicité d'AUR vous manque sur Debian/Ubuntu ? **debup** transforme les Gi
 
 **• Rétablir les mises à jour:** Restaurez les mises à jour automatiques à tout moment grâce à la commande unpin [dbp -n <paquet>].
 
-• Intégration native APT :
+**• Intégration native APT:**
 Repose sous le capot directement sur le mécanisme standard apt-mark de Debian, garantissant une cohérence à 100 % avec les outils natifs du système.
 
 ## 🎯 Détection intelligente des paquets
