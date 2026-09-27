@@ -118,8 +118,6 @@ cat << 'EOF'
 | (_| |  __/ |_) | |_| | |_) | 
  \__,_|\___|_.__/ \__,_| .__/  
  Hybrid Package Manager|_|     
-                             
-                            
 EOF
 echo -e "${NC}"
 
