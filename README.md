@@ -102,7 +102,7 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 
 •Local API response cache to eliminate redundant requests and optimize bandwidth.
 
-•Securely store a personal GitHub token (chmod 600) to unlock 5,000 req/hfor heavy searches and automated background update checks.
+•Securely store a personal GitHub token (chmod 600) to unlock 5,000 req/h for heavy searches and automated background update checks.
 
 #### 💻 Native Bash completion:
 
