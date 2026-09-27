@@ -217,7 +217,7 @@ fi
 
 DEB_FILE="${TEMP_DIR}/debup_latest.deb"
 echo -e "${BLUE}[*] Downloading package:${NC} ${GRAY}${DEB_URL}${NC}"
-curl -L --progress-bar -o "$DEB_FILE" "$DEB_URL"
+curl -sSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 --progress-bar -o "$DEB_FILE" "$DEB_URL"
 
 # Checksum verification (SHA-256)
 SHA_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("sha256|SHA256|checksums"; "i")) | .browser_download_url' | head -n1)
