@@ -139,11 +139,11 @@ fi
 
 echo -e "${BLUE}------------------------------------------------------------${NC}"
 
+case "$choice" in
+1)
 #  ==========================================================
 # OPTION 1: Add APT Repository + GPG Key
 # ==========================================================
-case "$choice" in
-1)
 echo -e "${CYAN}[*] Setting up official Debup APT repository...${NC}"
 
 sudo apt-get update -qq
