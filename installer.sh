@@ -158,7 +158,7 @@ sudo chmod 644 "$KEYRING_PATH"
 verify_gpg_fingerprint "$KEYRING_PATH"
 
 echo -e "${CYAN}[*] Configuring repository sources list...${NC}"
-echo "deb[signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | sudo tee "$SOURCES_LIST" >/dev/null
+echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | sudo tee "$SOURCES_LIST" >/dev/null
 
 echo -e "${CYAN}[*] Refreshing packagelists and installing debup...${NC}"
 sudo apt-get update -qq
