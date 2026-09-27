@@ -3,7 +3,7 @@
 <img src="https://api.iconify.design/lucide:package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
 <h1>debup</h1>
 <p><strong>debup gestor de paquetes : El eslabón perdido entre GitHub y APT para distribuciones basadas en Debian/Ubuntu, Raspberry Pi, Docker, WSL y terminales Linux de Android (AVF, Proot Debian/Ubuntu).</strong></p>
-<p>Busca, descubre, rastrea, instala y actualiza paquetes <code>.deb</code> directamente desde GitHubReleases a través de <strong>APT</strong>.</p>
+<p>Busca, descubre, rastrea, instala y actualiza paquetes <code>.deb</code> directamente desde APT y GitHub Releases <strong>simultáneamente</strong>.</p>
 <p><em>Sin PPAs, sin sandboxes pesados, sin repositorios de terceros — solo binarios <code>.deb</code> nativos descargados directamente desde la fuente original.
 Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">repositorio APT</a> o el<a href="#opción-2-instalador-rápido-de-una-sola-línea">instalador deuna sola línea</a>.</em></p>
 
@@ -48,31 +48,70 @@ Instalación sencilla con el <a href="#opción-1-repositorio-apt-recomendado">re
 ¿Echas de menos la comodidad de AUR enDebian/Ubuntu? **debup** convierte GitHub Releases en tu repositorio personal de terceros estilo rolling-release.
 **Descubre, inspecciona, instala y actualiza paquetes Debian directamente desde GitHub Releases con la simplicidad de `apt`.**
 
-## ✨ Características principales
-🔍 **Descubrir** [`dbp -s <consulta>`] :
-* Encuentra herramientas y aplicaciones directamente en GitHub sin salirde tu terminal, prefiltradas para repositorios compatibles con Debian.
-* Soporte para apuntar a versiones específicas durantela búsqueda e inspección: consulta y obtén etiquetas exactas directamente mediante el endpoint `/releases/tags/...` de la API de GitHub.
+## ✨ Características Principales
 
-📦 **Añadir directo** [`dbp -a <propietario/repo>`]:
-* Sin necesidad de buscar las URLs delanzamiento. Apunta a cualquier repositorio y debup detectará, comparará con tu arquitectura (`amd64` / `arm64`), descargará e instalará el paquete `.deb` correcto.
-* Permite fijar versiones en la instalación: `dbp -a propietario/repo@vX.Y.Z`
+#### 🔍 Descubrimiento Unificado e Instalación Múltiple [dbp -s <búsqueda>]:
 
-ℹ️ **Inspeccionar** [`dbp -i <propietario/repo>`]:
-* Previsualiza los metadatos antes de tocar tu sistema (estrellas, licencia, descripción, última versión, compatibilidad de arquitectura del archivo).
+• Busque simultáneamente en los repositorios APT de Debian y en GitHub Releases desde una única consulta en su terminal, prefiltrada para paquetes binarios compatibles.
 
-🔄 **Ciclo de vida nativo con APT**:
-* Instala, actualiza[`dbp -u `] y desinstala [`dbp -r`] paquetes rastreados de forma transparente usando el motor nativo APT de tu sistema.
+•Menú interactivo de selección múltiple con soporte para rangos y listas separadas por comas (ej.: 1 2 3,1-3, 1,2,4) para instalaciones masivas ultrarrápidas.
 
-⚡ **Rastreo de API de alta tasa** [`dbp -t`]:
-* Almacena de formasegura un token personal de GitHub (`chmod 600`) para desbloquear un límite de 5.000 peticiones/hora para búsquedas intensivas y comprobaciones automáticas de actualizaciones en segundo plano.
+#### 📦Instalación Directa [dbp -i <propietario/repositorio> / dbp -i <paquete>]:
 
-**Autocompletado nativo en Bash**:
-* Soporte de autocompletado tanto para `debup` como para el alias `dbp`, con sugerencias dinámicas y contextuales de paquetes para `remove`, `pin` y `unpin`.
+• Olvídese de buscar URLs de versiones manualmente. Apunte a cualquier repositorio y debup detectará, emparejará su arquitectura (amd64 / arm64), descargará e instalará el archivo .deb correcto.
 
-**🛡️ Fijación de paquetes** (`apt-mark hold`)
-* **Congelar actualizaciones :** Bloquea paquetes específicos en su versión actual con el comando `pin` (o `hold`) para evitar actualizaciones no deseadas.
-* **Descongelar actualizaciones :** Restaura las actualizaciones automáticas en cualquier momento con `unpin` (o `unhold`).
-* **Integración nativa con APT :** Basado directamente en el mecanismo estándar `apt-mark` de Debian entre bastidores, garantizando una consistencia del 100% con las herramientas nativas del sistema.
+• Funciona de manera transparente también con paquetes nativos de APT (dbp -i bat).
+
+• Soporte para fijar versiones en la instalación: dbp -i propietario/repositorio@vX.Y.Z.
+
+• Soporte para instalaciones automatizadas no interactivas mediante -y / --yes.
+
+#### ℹ️ Vista Previa de Metadatos [dbp -f <propietario/repositorio>]:
+
+• Revise los metadatos del paquete remoto antes detocar su sistema (contador de estrellas, licencia SPDX, descripción, etiqueta de versión, fecha de publicación y compatibilidad de assets según la arquitectura).
+
+#### 🛡️ Auditoría de Seguridad e Inspección de Scripts Root [dbp -I <propietario/repositorio>]:
+
+• Inspeccione los scripts de mantenimiento internos (preinst, postinst, prerm, postrm)y el árbol de archivos en crudo contenidos dentro de cualquier archivo .deb remoto antes de su ejecución.
+
+• Alerta interactiva automática que le advierte si un paquete descargado incluye scripts de mantenimiento con privilegios de root antes de proceder con la instalación.
+
+#### 🔒 Verificación Automatizada de Integridad:
+
+• Detecta y valida automáticamente los archivos de sumas de comprobación publicados (SHA256SUMS, checksums.txt, *.sha256) frentea los binarios descargados antes de invocar dpkg.
+
+🔄 Ciclo de Vida Nativo de APT y Actualizaciones Unificadas [dbp -u]:
+
+• Sincroniza sin fisuras los repositorios APT y actualizatanto los paquetes nativos de Debian como las aplicaciones de GitHub monitorizadas en un único flujo de trabajo unificado.
+
+•Eliminación limpia del seguimiento de paquetes [dbp -r <paquete>] con ejecución automatizada del purgado en APT.
+
+#### 📊 Telemetría y Panel del Sistema [dbp -S]:
+
+• Visión en tiempo real de los paquetes nativos instalados, aplicaciones de GitHub monitorizadas, paquetes bloqueados, espacio del caché de la API y cuota restante del límite de peticiones de la API de GitHub con su cuenta regresiva de reinicio.
+
+#### 🧹 Mantenimiento y Limpieza de Caché [dbp -c] :• Limpia los paquetes .deb residuales deinstalación en /tmp, purga el caché de descargas de APT y restablece los cachés de respuestas obsoletos de la APIde GitHub.
+
+#### 🧪 Modo de Simulación "Dry-Run" [-d / --dry-run]:
+
+• Simule descargas, actualizaciones, operaciones sobre repositorios, fijaciones y desvinculaciones en cualquier comando sin alterar el sistema de archivos ni el estado de APT.
+
+#### ⚡Seguimiento y Caché de API de Alto Tráfico [dbp -t]:
+
+• Caché local de respuestas de la API para eliminar peticiones redundantes y optimizar el ancho de banda.• Almacene de forma segura un token personal de GitHub (chmod 600) para desbloquear 5,000 peticiones/h para búsquedas intensivas y comprobaciones automáticas en segundo plano.
+
+#### 💻 Autocompletado Nativo para Bash:
+
+• Soporte de autocompletado tanto para debup como para elalias dbp, incluyendo sugerencias dinámicas de paquetes contextualizadas para desinstalar (remove), fijar (pin) y desfijar (unpin).
+
+#### 🛡️ Fijación de Paquetes (apt-mark hold):
+
+**•Congelar actualizaciones:** Bloquee paquetes específicos en su versión actual con el comando pin [dbp -p <paquet>] para evitar actualizaciones no deseadas.
+
+**• Descongelar actualizaciones :*
+Restaure las actualizaciones automáticas cuando lo desee con unpin [dbp -n <paquet>].
+
+**• Integración nativa con APT:** Utiliza directamente el mecanismo estándar apt-mark de Debian por debajo, garantizando una compatibilidad absoluta con las herramientas nativas del sistema.
 
 ## 🎯 Detección inteligente de archivos
 
