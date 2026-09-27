@@ -49,32 +49,76 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 **Discover, inspect, install, and update Debian packages directly from GitHub Releases with the simplicity of `apt`.**
 
 ## ✨ Core Features
-🔍 **Discover** [`dbp -s <query>`] :
-* Find tools and applications directly on GitHub without leaving your terminal, pre-filtered for Debian-compatible repositories.
-* Supports release targeting during search & info inspections: fetch and query exact tags directly via GitHub API's `/releases/tags/...` endpoint.
 
-📦 **Direct Add** [`dbp -a <owner/repo>`]:
-* No need to hunt down release URLs. Point to any repository, and debup detects, matches your architecture (`amd64` / `arm64`), downloads, and installs the right `.deb`.
-* Supports version pins on installation: `dbp -a owner/repo@vX.Y.Z`
+### 🔍 Unified Discovery & Multi-Install [dbp -s <query>] :
 
-ℹ️ **Inspect** [`dbp -i <owner/repo>`]:
-* Preview metadata before touching your system (stars, license, description, latest release, asset architecture compatibility).
+•Search Debian APT repositories and GitHub Releases concurrently in a single terminal query, pre-filtered for compatible binary packages.
 
-🔄 **Native APT Lifecycle**:
-* Seamlessly install, update [`dbp -u `], and remove [`dbp -r`] tracked packages using your system's native APT engine.
+•Interactive multi-selection prompt supporting ranges and comma-separated lists (e.g., 1 2 3, 1-3, 1,2,4) for rapid batch installations.
 
-⚡ **High-Rate API Tracking** [`dbp -t`]:
-* Securely store a personal GitHub token (`chmod 600`) to unlock 5,000 req/h for heavy searches and automated background update checks.
+#### 📦 Direct Installation [dbp -i <owner/repo> / dbp -i <pkg>]:
 
-**Native Bash completion**:
-* Autocompletion support for both `debup` and the `dbp` alias, featuring context-aware dynamic package suggestions for `remove`, `pin`, and `unpin`.
+•No need to hunt down release URLs. Point to any repository, and debup detects, matches your architecture (amd64 / arm64), downloads, and installs the right .deb.
 
-**🛡️ Package Pinning** (`apt-mark hold`)
-* **Freeze package updates :** Lock specific packages to their current version using the `pin` (or `hold`) command to prevent unwanted updates.
-* **Unfreeze updates :** Restore automatic updates anytime with `unpin` (or `unhold`).
-* **Native APT integration :** Relies directly on Debian's standard `apt-mark` mechanism under the hood, ensuring 100% consistency with native system tools.
+•Works transparently with native APT packages as well (dbp -i bat).
 
-## 🎯 Smart Asset Detection
+•Supports version pins on installation: dbp -i owner/repo@vX.Y.Z.
+
+•Supports non-interactive automated installs via -y / --yes.
+
+#### ℹ️ Metadata Preview [dbp -f <owner/repo>]:
+
+•Preview remote package metadata before touching your system (stars count, SPDX license, description, release tag, publish date, and architecture asset compatibility).
+
+#### 🛡️ Security Audit & Root Script Inspection [dbp -I <owner/repo>]:
+
+•Inspect internal maintainer scripts (preinst, postinst, prerm,postrm) and the raw file tree contained inside any remote .deb before execution.
+
+•Automatic interactive prompt alerting you whenever a downloaded package contains root maintenance scripts prior to installation.
+
+#### 🔒 Automated Integrity Verification:
+
+•Automatically detects and validates published checksum files (SHA256SUMS, checksums.txt, *.sha256) against downloaded binaries before invoking dpkg.
+
+#### 🔄 Native APT Lifecycle & Unified Upgrades [dbp -u]:
+
+•Seamlessly syncs APT repositories and updates both native Debian packages and tracked GitHub applications in a single unified workflow.
+
+•Clean package tracking removal [dbp -r <pkg>] with automated APT purge execution.
+
+#### 📊 Telemetry & System Dashboard [dbp -S]:
+
+•Real-time overview of native installed packages, tracked GitHub packages, locked packages, API cache footprint, and remaining GitHub API rate-limit quota with reset time.
+
+#### 🧹 Maintenance & Cache Cleanup [dbp -c]:
+
+•Cleans leftover installation deb archives in /tmp, purges APT's download cache, and resets stale local GitHub API response caches
+
+#### 🧪 Dry-Run Simulation Mode [-d / --dry-run]:
+
+•Simulate downloads, upgrades, repository operations, pins, and unpins across any command without making any actual changes to the file system or APT state.
+
+#### ⚡High-Rate API Tracking & Caching [dbp -t]:
+
+•Local API response cache to eliminate redundant requests and optimize bandwidth.
+
+•Securely store a personal GitHub token (chmod 600) to unlock 5,000 req/hfor heavy searches and automated background update checks.
+
+#### 💻 Native Bash completion:
+
+•Autocompletion support for both debup and the dbp alias, featuring context-aware dynamic package suggestions for remove, pin, andunpin.
+
+#### 🛡️ Package Pinning (apt-mark hold):
+
+•Freeze package updates :
+
+Lock specific packages to their current version using the pin [dbp -p <pkg>] command to prevent unwanted updates.
+
+•Unfreeze updates : Restore automatic updates anytime with unpin [dbp -n <pkg>].
+
+•Native APT integration : Relies directly on Debian's standard apt-mark mechanism under the hood, ensuring 100% consistency with native system tools.
+
+### 🎯 Smart Asset Detection
 
 `debup` automatically picks the right `.deb` binary from GitHub Releases without guesswork:
 
