@@ -2,8 +2,8 @@
  
 <img src="https://api.iconify.design/lucide:package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
 <h1>debup</h1>
-<p><strong>debup package manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions,Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
-<p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from GitHub Releases via <strong>APT</strong>.</p>
+<p><strong>debup - Hybrid Package Manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions,Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
+<p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from APT & GitHub Releases <strong>simultaneously</strong>.</p>
 <p><em>No PPAs, no bloated sandboxes, no third-party repositories — just native <code>.deb</code> binaries fetched straight from upstream.
 Easy installation with <a href="#option-1-apt-repository-recommended">APT repository</a> or <a href="#option-2-quick-one-liner">One-line installer</a>.</em></p>
   
