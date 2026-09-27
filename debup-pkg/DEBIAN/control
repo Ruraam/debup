@@ -1,5 +1,5 @@
 Package: debup
-Version: 3.4.1
+Version: 4.0.0
 Section: utils
 Priority: optional
 Architecture: all
