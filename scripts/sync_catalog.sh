@@ -19,7 +19,7 @@ pkg=$(basename "$f")
 
 (
 export HOST_ARCH="amd64"
-exportARCH="amd64"
+export ARCH="amd64"
 export DEB_GET_TEMP="/tmp"
 
 GITHUB_REPO=""
