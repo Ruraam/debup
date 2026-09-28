@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
 WORK_DIR="/tmp/deb-get"
 CATALOG_FILE="curated_db.txt"
 TMP_RAW="/tmp/catalog_raw.tmp"
@@ -34,11 +32,11 @@ echo "${pkg}|github|${GITHUB_REPO}"
 elif [ -n "$DIRECT_URL" ] && [ -z "$APT_PPA" ] && [ -z "$APT_REPO" ]; then
 echo "${pkg}|direct|${DIRECT_URL}"
 fi
-) >> "$TMP_RAW" 2>/dev/null
+) >> "$TMP_RAW" 2>/dev/null || true
 done
 
 echo "[*] Nettoyage et validation..."
-grep -E'^[a-zA-Z0-9._-]+(\|(github|direct)\|)[^|]+$' "$TMP_RAW" | sort -u > "$CATALOG_FILE"
+grep -E'^[a-zA-Z0-9._-]+(\|(github|direct)\|)[^|]+$' "$TMP_RAW" | sort -u > "$CATALOG_FILE" || true
 
 rm -rf "$WORK_DIR" "$TMP_RAW"
 
