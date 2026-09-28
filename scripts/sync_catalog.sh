@@ -1,62 +1,37 @@
 #!/usr/bin/env bash
 
-WORK_DIR="/tmp/deb-get"
+WORK_DIR="/tmp/deb-get-repo"
 CATALOG_FILE="curated_db.txt"
-TMP_RAW="/tmp/catalog_raw.tmp"
+TMP_CSV="/tmp/deb-get.csv"
 
-echo "[*] Clonage de deb-get..."
-rm-rf "$WORK_DIR" "$TMP_RAW"
-git clone --depth 1 https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
+echo "[*] Clonage officiel du repo deb-get..."
+rm-rf "$WORK_DIR" "$CATALOG_FILE" "$TMP_CSV"
+git clone --depth 1https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
 
-> "$TMP_RAW"
+echo "[*] Extractionde la liste via le moteur deb-get..."
+chmod +x "$WORK_DIR/deb-get"
+"$WORK_DIR/deb-get" csv> "$TMP_CSV"
 
-echo"[*] Analyse des recettes..."
-for f in "$WORK_DIR"/01-main/packages/*; do
-[ -f "$f" ] || continue
-pkg=$(basename "$f")
+echo "[*] Formatage pour debup..."
+> "$CATALOG_FILE"
 
-(
-export HOST_ARCH="amd64"
-export ARCH="amd64"
-export DEB_GET_TEMP="/tmp"
+while IFS=',' read -r pkg method target _rest; do
+pkg=$(echo "$pkg" | tr -d ' "')
+method=$(echo "$method" | tr -d ' "')
+target=$(echo "$target" | tr -d ' "')
 
-say_github() { echo "$1"; }
-say_direct() { echo "$1"; }
-
-source "$f" >/dev/null 2>&1 || true
-
-fn_gh="${pkg//-/_}_github"
-if declare -f "$fn_gh" >/dev/null 2>&1; then
-res=$("$fn_gh" 2>/dev/null | tr -d ' "' | head -n 1)
-if [[ "$res" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
-echo "${pkg}|github|${res}"
-exit 0
+if [ "$method" = "github" ] && [ -n "$target" ]; then
+echo "${pkg}|github|${target}" >> "$CATALOG_FILE"
+elif [ "$method" = "direct" ] && [ -n "$target" ]; then
+echo "${pkg}|direct|${target}" >> "$CATALOG_FILE"
 fi
-fi
+done < "$TMP_CSV"
 
-fn_dir="${pkg//-/_}_direct"
-if declare -f "$fn_dir" >/dev/null 2>&1; then
-res=$("$fn_dir" 2>/dev/null | tr -d ' "' | head -n 1)
-if [[ "$res" =~ ^https?:// ]]; then
-echo "${pkg}|direct|${res}"
-exit 0
-fi
-fi
-
-gh_match=$(grep -Eo 'https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+' "$f" | sed 's#https://github.com/##' | grep -v 'wimpysworld/deb-get' |head -n 1)
-if [ -n "$gh_match" ]; then
-echo "${pkg}|github|${gh_match}"
-exit 0
-fi
-) >> "$TMP_RAW"2>/dev/null || true
-done
-
-echo "[*] Nettoyage et formatage..."
-grep -E '^[a-zA-Z0-9._-]+(\|(github|direct)\|)[^|]+$' "$TMP_RAW" | sort -u > "$CATALOG_FILE" || true
-
-rm -rf "$WORK_DIR" "$TMP_RAW"
+sort -u -o "$CATALOG_FILE" "$CATALOG_FILE"
+rm -rf "$WORK_DIR" "$TMP_CSV"
 
 TOTAL=$(wc -l < "$CATALOG_FILE")
-echo "[+] SUCCÈS ! $TOTAL paquets indexés dans $CATALOG_FILE"
-echo "--- Exemples extraits ---"
-head -n 20 "$CATALOG_FILE"
+echo "[+] SUCCÈS TOTAL! $TOTAL paquets indexés dans $CATALOG_FILE"
+echo ""
+echo "--- Aperçu des 15premiers paquets ---"
+head -n 15 "$CATALOG_FILE"
