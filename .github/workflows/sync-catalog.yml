@@ -15,14 +15,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run syncscript
+      - name: Run sync script
         run: |
           chmod +x scripts/sync_catalog.sh
           ./scripts/sync_catalog.sh
 
       - name: Commit and push catalog
         run: |
-          git config --localuser.name "github-actions[bot]"
+          git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add curated_db.txt
           if git diff --staged --quiet; then
