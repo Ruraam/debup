@@ -8,7 +8,7 @@ TMP_RAW="/tmp/catalog_raw.tmp"
 
 echo "[*] Nettoyage et clonage..."
 rm -rf "$WORK_DIR" "$TMP_RAW"
-gitclone --depth 1 https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
+git clone --depth 1 https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
 
 > "$TMP_RAW"
 
