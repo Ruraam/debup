@@ -2,43 +2,42 @@
 
 WORK_DIR="/tmp/deb-get"
 CATALOG_FILE="curated_db.txt"
-TMP_RAW="/tmp/catalog_raw.tmp"
 
-echo "[*] Nettoyage et clonage..."
-rm -rf "$WORK_DIR" "$TMP_RAW"
+echo "[*] Clonage de deb-get..."
+rm -rf "$WORK_DIR" "$CATALOG_FILE"
 git clone --depth 1 https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
 
-> "$TMP_RAW"
+> "$CATALOG_FILE"
 
 echo "[*] Analyse des recettes..."
 for f in "$WORK_DIR"/01-main/packages/*; do
 [ -f "$f" ] || continue
 pkg=$(basename "$f")
+gh_repo=$(grep -Eo '([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)' "$f" | grep -v 'wimpysworld/deb-get'| head -n 1)
 
-(
-export HOST_ARCH="amd64"
-export ARCH="amd64"
-export DEB_GET_TEMP="/tmp"
-
-GITHUB_REPO=""
-DIRECT_URL=""
-APT_PPA=""
-APT_REPO=""
-
-source "$f" >/dev/null 2>&1 || true
-
-if [ -n "$GITHUB_REPO" ]; then
-echo "${pkg}|github|${GITHUB_REPO}"
-elif [ -n "$DIRECT_URL" ] && [ -z "$APT_PPA" ] && [ -z "$APT_REPO" ]; then
-echo "${pkg}|direct|${DIRECT_URL}"
+if grep -q"say_github" "$f" || grep -q "github.com" "$f"; then
+repo=$(grep -E 'say_github|GITHUB_REPO' "$f" | head -n 1 | sed -E 's/.*say_github[[:space:]]+"?([^" ]+)"?.*/\1/' |sed -E 's/.*GITHUB_REPO="?([^" ]+)"?.*/\1/')
+if [ -n "$repo" ] && [[ "$repo" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
+echo "${pkg}|github|${repo}" >> "$CATALOG_FILE" || true
+continue
 fi
-) >> "$TMP_RAW" 2>/dev/null || true
+fi
+
+if grep -qE 'say_direct|DIRECT_URL' "$f"; then
+if ! grep -qE 'say_ppa|say_repo|APT_PPA|APT_REPO' "$f"; then
+url=$(grep -E 'say_direct|DIRECT_URL' "$f"| head -n 1 | sed -E 's/.*say_direct[[:space:]]+"?([^" ]+)"?.*/\1/' | sed -E 's/.*DIRECT_URL="?([^" ]+)"?.*/\1/')
+if [ -n "$url" ] && [[ "$url" =~ ^https?:// ]]; then
+echo "${pkg}|direct|${url}" >> "$CATALOG_FILE" || true
+continue
+fi
+fi
+fi
 done
 
-echo "[*] Nettoyage et validation..."
-grep -E'^[a-zA-Z0-9._-]+(\|(github|direct)\|)[^|]+$' "$TMP_RAW" | sort -u > "$CATALOG_FILE" || true
-
-rm -rf "$WORK_DIR" "$TMP_RAW"
+sort -u -o "$CATALOG_FILE" "$CATALOG_FILE"
+rm -rf "$WORK_DIR"
 
 TOTAL=$(wc -l < "$CATALOG_FILE")
-echo "[+] Fait : $TOTAL paquets dans $CATALOG_FILE"
+echo "[+] SUCCÈS ! $TOTAL paquets indexés dans $CATALOG_FILE"
+echo "--- Exemples extraits ---"
+head -n 15 "$CATALOG_FILE"
