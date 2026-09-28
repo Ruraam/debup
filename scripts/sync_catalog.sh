@@ -6,7 +6,7 @@ TMP_CSV="/tmp/deb-get.csv"
 
 echo "[*] Clonage officiel du repo deb-get..."
 rm-rf "$WORK_DIR" "$CATALOG_FILE" "$TMP_CSV"
-git clone --depth 1https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
+git clone --depth 1 https://github.com/wimpysworld/deb-get.git "$WORK_DIR"
 
 echo "[*] Extractionde la liste via le moteur deb-get..."
 chmod +x "$WORK_DIR/deb-get"
@@ -23,7 +23,7 @@ target=$(echo "$target" | tr -d ' "')
 if [ "$method" = "github" ] && [ -n "$target" ]; then
 echo "${pkg}|github|${target}" >> "$CATALOG_FILE"
 elif [ "$method" = "direct" ] && [ -n "$target" ]; then
-echo "${pkg}|direct|${target}" >> "$CATALOG_FILE"
+echo "${pkg}|direct|${target}" >> "$CATALOG_FILE" || true
 fi
 done < "$TMP_CSV"
 
@@ -33,5 +33,5 @@ rm -rf "$WORK_DIR" "$TMP_CSV"
 TOTAL=$(wc -l < "$CATALOG_FILE")
 echo "[+] SUCCÈS TOTAL! $TOTAL paquets indexés dans $CATALOG_FILE"
 echo ""
-echo "--- Aperçu des 15premiers paquets ---"
+echo "--- Aperçu des 15 premiers paquets ---"
 head -n 15 "$CATALOG_FILE"
