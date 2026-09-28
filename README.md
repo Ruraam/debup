@@ -5,7 +5,7 @@
 <p><strong>debup - Hybrid Package Manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions,Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
 <p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from APT & GitHub Releases <strong>simultaneously</strong>.</p>
 <p><em>No PPAs, no bloated sandboxes, no third-party repositories — just native <code>.deb</code> binaries fetched straight from upstream.
-Easy installation with <a href="#option-1-apt-repository-recommended">APT repository</a> or <a href="#option-2-quick-one-liner">One-line installer</a>.</em></p>
+Easy installation with <a href="https://github.com/Ruraam/debup#-installation">Debup Installer</a>.</em></p>
   
 </div>
 
