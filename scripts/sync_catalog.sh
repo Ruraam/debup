@@ -15,7 +15,7 @@ for f in "$WORK_DIR"/01-main/packages/*; do
 [ -f "$f" ] || continue
 pkg=$(basename "$f")
 
-gh_repo=$(grep -E '^[[:space:]]*get_github_releases[[:space:]]+' "$f" | head-n 1 | sed -E 's/.*get_github_releases[[:space:]]+"([^"]+)".*/\1/')
+gh_repo=$(grep -E '^[[:space:]]*get_github_releases[[:space:]]+' "$f" | head -n 1 | sed -E 's/.*get_github_releases[[:space:]]+"([^"]+)".*/\1/')
 
 if [ -n "$gh_repo" ] && [[ "$gh_repo" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
 echo "${pkg}|github|${gh_repo}" >> "$CATALOG_FILE"
