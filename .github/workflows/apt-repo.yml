@@ -35,11 +35,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p debs
-          TAG="${{ github.event.release.tag_name }}"
-          if [ -n "$TAG" ]; then
-            gh release download "$TAG" --pattern "*.deb" --dir debs/
-          else
-            gh release download --pattern "*.deb" --dir debs/
+          for i in $(seq 1 12); do
+            gh release download --pattern "*.deb" --dir debs/ --clobber || true
+            count=$(find debs/ -name "*.deb" | wc -l)
+          if [ "$count" -gt 0 ]; then
+            echo "Trouvé $count paquet(s) .deb !"
+            break
+          fi
+          echo "En attente des fichiers .deb (tentative $i/12)..."
+          sleep 5
+          done
+
+          if [ "$count" -eq 0 ]; then
+            echo "ERREUR: Aucun .deb trouvé !"
+            exit 1
           fi
 
       - name: Import GPG Key and build APT repository
