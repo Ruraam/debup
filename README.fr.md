@@ -198,14 +198,11 @@ dbp -p <nom-du-paquet>
 dbp -n <nom-du-paquet>
 ```
 ### Mises à jour des paquets
-**Télécharger et mettre à jour les paquets suivis avec confirmation (avec & sans dépôt APT)**
+**Télécharger et mettre à jour les paquets suivis ainsi qu'un apt upgrade avec confirmation (avec & sans dépôt APT)**
 ```bash
 dbp -u [-y]
 ```
-**Mettre à jour debup via le dépôt APT :**
-```bash
-sudo apt update && sudo apt upgrade debup
-```
+
 ### 🔍 Découvrir, rechercher et installer des paquets[ `dbp -s`]
 
 Trouvez et découvrez tout projet GitHub fournissant des paquets .deb compatibles avec votre architecture et installez-les en un clic :
