@@ -160,7 +160,7 @@ Rendez-vous sur GitHub > Settings > Developer settings > Personalaccess tokens >
 
 **2. Lier le jeton à debup :**
 ```bash
-dbp -t
+dbp -t <ghtoken>
 ```
 Collez votre jeton et confirmez. C'est tout !
 
