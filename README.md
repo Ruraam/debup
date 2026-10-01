@@ -42,7 +42,7 @@ Easy installation with <a href="https://github.com/Ruraam/debup#-installation">i
 </div>
 
 ---
-[My latest project on Github](https://github.com/Ruraam/ulpm) - Universal Linux Package Manager & Autonomous Containerized Bundle Engine
+> 🚀 **Check out my new project:** [**ULPM & .lpk**](https://github.com/Ruraam/ulpm) — *Lightweight, rootless, zero-daemon containerized package manager for Linux.*
 
 ---
 
