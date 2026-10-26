@@ -9,6 +9,7 @@ antimicrox|github|AntiMicroX/antimicrox
 appflowy|github|AppFlowy-IO/AppFlowy
 appimagelauncher|github|TheAssassin/AppImageLauncher
 aptakube|github|aptakube/aptakube
+aster-mail|github|Aster-Privacy/Aster-Mail
 authme|github|Levminer/authme
 azuredatastudio|github|microsoft/azuredatastudio
 balena-etcher|github|balena-io/etcher
@@ -127,6 +128,7 @@ lact|github|ilya-zlobintsev/LACT
 lazyjournal|github|Lifailon/lazyjournal
 lektra|github|dheerajshenoy/lektra
 libation|github|rmcrackan/Libation
+lightning|github|Mizerd/lightning
 limoji|github|GEROGIANNIS/limoji
 linux-assistant|github|Jean28518/linux-assistant
 lsd|github|Peltoche/lsd
@@ -235,6 +237,7 @@ tapmap|github|olalie/tapmap
 teams-for-linux|github|IsmaelMartinez/teams-for-linux
 television|github|alexpasmantier/television
 termix|github|Termix-SSH/Termix
+tesseract-matrix|github|surakin/tesseract
 thorium-browser|github|Alex313031/Thorium
 tidal-hifi|github|Mastermindzh/tidal-hifi
 tinygo|github|tinygo-org/tinygo
@@ -248,6 +251,7 @@ tux-manager|github|benapetr/TuxManager
 ulauncher|github|Ulauncher/Ulauncher
 vesktop|github|Vencord/Vesktop
 vfox|github|version-fox/vfox
+voxtype|github|peteonrails/voxtype
 wasistlos|github|xeco23/WasIstLos
 wealthfolio|github|afadil/wealthfolio
 weylus|github|H-M-H/Weylus
