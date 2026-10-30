@@ -133,7 +133,7 @@ EOF
     echo -e "${BLUE}------------------------------------------------------------${NC}\n"
     echo -e ""
     echo -e "${BOLD}Please choose an installation method:${NC}\n"
-    echo -e "${YELLOW}[1]${NC} ${BOLD}APT Repository (Recommended)${NC}"
+    echo -e "  ${YELLOW}[1]${NC} ${BOLD}APT Repository (Recommended)${NC}"
     echo -e "      ${GRAY}Installs GPG key and adds the official APT repository.${NC}"
     echo -e "      ${GRAY}Enables automatic updates with 'apt update && apt upgrade'.${NC}\n"
     echo -e "  ${YELLOW}[2]${NC} ${BOLD}Download Latest Release (.deb)${NC}"
