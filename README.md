@@ -1,6 +1,6 @@
 <div align="center">
  
-<img src="https://api.iconify.design/lucide:package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
+<img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
 <h1>debup</h1>
 <p><strong>debup - Hybrid Package Manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions,Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
 <p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from APT & GitHub Releases <strong>simultaneously</strong>.</p>
@@ -28,9 +28,9 @@ Easy installation with <a href="https://github.com/Ruraam/debup#-installation">i
 
 <div align="center">
 
-<a href="README.md"><img src="https://api.iconify.design/circle-flags:gb.svg" width="16" height="16" alt="English" style="vertical-align: middle;"> English</a> &nbsp;•&nbsp;
-<a href="README.fr.md"><img src="https://api.iconify.design/circle-flags:fr.svg" width="16" height="16" alt="Français" style="vertical-align: middle;"> Français</a> &nbsp;•&nbsp;
-<a href="README.es.md"><img src="https://api.iconify.design/circle-flags:es.svg" width="16" height="16" alt="Español" style="vertical-align: middle;"> Español</a>
+<a href="README.md"><img src="https://api.iconify.design/circle-flags/gb.svg" width="16" height="16" alt="English" style="vertical-align: middle;"> English</a> &nbsp;•&nbsp;
+<a href="README.fr.md"><img src="https://api.iconify.design/circle-flags/fr.svg" width="16" height="16" alt="Français" style="vertical-align: middle;"> Français</a> &nbsp;•&nbsp;
+<a href="README.es.md"><img src="https://api.iconify.design/circle-flags/es.svg" width="16" height="16" alt="Español" style="vertical-align: middle;"> Español</a>
 
 </div>
 
