@@ -1,0 +1,134 @@
+
+name: Build and Release DEB Package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Extract and validate version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "Error: Release version is empty."
+            exit 1
+          fi
+
+          if ! dpkg --validate-version "$VERSION"; then
+            echo "Error: Invalid Debian package version: $VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Debup version: $VERSION"
+
+      - name: Prepare Debian package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Verify the original package structure.
+          if [[ ! -d "debup-pkg/DEBIAN" ]]; then
+            echo "Error: debup-pkg/DEBIAN directory not found."
+            exit 1
+          fi
+
+          if [[ ! -f "debup-pkg/DEBIAN/control" ]]; then
+            echo "Error: Debian control file not found."
+            exit 1
+          fi
+
+          # Work on a copy to preserve the repository.
+          mkdir -p build
+          cp -a debup-pkg build/debup-pkg
+
+          PKG_DIR="build/debup-pkg"
+
+          # Update package version from the GitHub Release tag.
+          sed -i "s/^Version:.*/Version: ${VERSION}/" \
+            "$PKG_DIR/DEBIAN/control"
+
+          # Preserve executable permissions used by the installer.
+          for file in \
+            "$PKG_DIR/DEBIAN/postinst" \
+            "$PKG_DIR/DEBIAN/postrm" \
+            "$PKG_DIR/usr/local/bin/debup" \
+            "$PKG_DIR/usr/local/bin/dbp"
+          do
+            if [[ -f "$file" ]]; then
+              chmod 755 "$file"
+            fi
+          done
+
+          # Validate package metadata.
+          grep -q "^Package: debup$" "$PKG_DIR/DEBIAN/control"
+          grep -q "^Version: ${VERSION}$" "$PKG_DIR/DEBIAN/control"
+
+          echo "Package structure prepared successfully."
+
+      - name: Build DEB package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE="debup_${VERSION}_all.deb"
+
+          dpkg-deb --build \
+            --root-owner-group \
+            build/debup-pkg \
+            "$PACKAGE"
+
+          echo "Generated package: $PACKAGE"
+
+      - name: Validate DEB package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE="debup_${VERSION}_all.deb"
+
+          dpkg-deb --info "$PACKAGE"
+
+          ACTUAL_PACKAGE=$(dpkg-deb -f "$PACKAGE" Package)
+          ACTUAL_VERSION=$(dpkg-deb -f "$PACKAGE" Version)
+          ACTUAL_ARCH=$(dpkg-deb -f "$PACKAGE" Architecture)
+
+          [[ "$ACTUAL_PACKAGE" == "debup" ]]
+          [[ "$ACTUAL_VERSION" == "$VERSION" ]]
+          [[ "$ACTUAL_ARCH" == "all" ]]
+
+          echo "DEB package validation successful."
+
+      - name: Generate SHA256 checksum
+        shell: bash
+        run: |
+          sha256sum debup_*.deb > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish DEB to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            debup_*.deb
+            SHA256SUMS
