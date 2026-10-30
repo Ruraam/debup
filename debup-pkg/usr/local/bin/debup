@@ -83,6 +83,7 @@ GRAY='\033[0;90m'
 MAGENTA='\033[0;35m'
 NC='\033[0m'
 
+show_banner() {
     echo -e "${BOLD}${RED}"
     cat << 'EOF'
            ********           
@@ -1238,7 +1239,7 @@ case "$1" in
         echo -e "${NC}"
         echo -e "${BOLD}${MSG_HELP_SEC_PKG}${NC}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-i, install, -a, add [-y] <repo>" "$MSG_HELP_ADD"
-        printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-u, upgrade [-y]"               "$MSG_HELP_UPGRADE"
+        printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-u, upgrade [-y]"                 "$MSG_HELP_UPGRADE"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-r, remove <pkg>"                 "$MSG_HELP_REMOVE"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n\n" "-p, pin | -n, unpin <pkg>"      "$MSG_HELP_PIN"
 
