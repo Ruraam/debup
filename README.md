@@ -280,7 +280,7 @@ sudo apt --purge debup [-y]
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ---
-> How to install .deb packages downloaded from Github on Debian Ubuntu based yay paru aur
-> 
-> How to automatically update .deb packages downloaded from GitHub on Debian Ubuntu based yay paru aur
 
+*[Universal Linux Package Manager [ULPM]:](https://github.com/Ruraam/ulpm) 3⭐ - Lightweight, rootless, zero-daemon, sandboxed `application/read-only OS runtime` for any Linux distribution. Lighter than Flatpak or Snap.*
+
+*[Universal Ruvomain ADB App Manager [URAAM]:](https://github.com/Ruraam/Uraam) 50⭐ - An all-in-one shell toolkit for `Android debloating`. Uninstall/disable your apps, backup your debloat apps JSON file & revert/restore, install apk. Works with `Termux WirelessADB, Shizuku, Root`, `Linux Debian, Arch, Fedora, macOS & WSL`. Compatible with Canta/UAD JSON lists.*
