@@ -10,8 +10,39 @@ EXPECTED_GPG_FINGERPRINT="0F43E2925658EB3CAC8BA4B6B3C2F87E36A62AE2"
 REPO_GPG_URL="https://ruraam.github.io/debup/debup.gpg"
 API_URL="https://api.github.com/repos/Ruraam/debup/releases/latest"
 
+BOLD='\033[1m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+GRAY='\033[0;90m'
+NC='\033[0m'
+
 # ==========================================================
-# Privilege Escalation Handling (PRoot & Non-Root Safe)
+# Global cleanup state
+# ==========================================================
+_DEBUP_CLEANUP_TMPKEY=""
+_DEBUP_CLEANUP_TEMPDIR=""
+
+_cleanup_all() {
+    [ -n "${_DEBUP_CLEANUP_TMPKEY:-}" ] && rm -f -- "$_DEBUP_CLEANUP_TMPKEY"
+    [ -n "${_DEBUP_CLEANUP_TEMPDIR:-}" ] && rm -rf -- "$_DEBUP_CLEANUP_TEMPDIR"
+    return 0
+}
+
+cleanup_tempdir_now() {
+    if [ -n "${_DEBUP_CLEANUP_TEMPDIR:-}" ] && [ -d "$_DEBUP_CLEANUP_TEMPDIR" ]; then
+        rm -rf -- "$_DEBUP_CLEANUP_TEMPDIR"
+    fi
+    _DEBUP_CLEANUP_TEMPDIR=""
+}
+
+trap _cleanup_all EXIT
+trap 'exit 130' INT TERM
+
+# ==========================================================
+# Privilege Escalation Handling
 # ==========================================================
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then
@@ -20,7 +51,7 @@ if [ "$(id -u)" -ne 0 ]; then
     elif command -v doas >/dev/null 2>&1; then
         SUDO="doas"
     else
-        echo -e "\033[1;31m[!] Error: Root privileges required. Please install sudo or run as root.\033[0m" >&2
+        echo -e "${RED}[!] Error: Root privileges required. Please install sudo or run as root.${NC}" >&2
         exit 1
     fi
 fi
@@ -38,25 +69,71 @@ for arg in "$@"; do
     esac
 done
 
-BOLD='\033[1m'
-RED='\033[1;31m'
-GREEN='\033[1;32m'
-BLUE='\033[1;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-GRAY='\033[0;90m'
-NC='\033[0m' # Reset color
+# ==========================================================
+# prompt_read safe (TTY / pipe / non-interactive)
+# ==========================================================
+prompt_read() {
+    local _var="$1"
+    local _prompt="${2:-}"
+    local _default="${3:-}"
 
+    [ -n "$_prompt" ] && echo -en "$_prompt" >&2
+
+    local _answer=""
+
+    if [ -t 0 ]; then
+        IFS= read -r _answer || _answer=""
+    elif [ -e /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+        IFS= read -r _answer </dev/tty || _answer=""
+    else
+        if [ -n "$_default" ]; then
+            echo -e "${YELLOW}⚠ No TTY available: defaulting to '${_default}'.${NC}" >&2
+            printf -v "$_var" '%s' "$_default"
+            return 0
+        else
+            echo -e "${RED}✖ No TTY available and no default provided. Aborting.${NC}" >&2
+            return 1
+        fi
+    fi
+
+    [ -z "$_answer" ] && [ -n "$_default" ] && _answer="$_default"
+
+    printf -v "$_var" '%s' "$_answer"
+    return 0
+}
+
+# ==========================================================
+# GPG fingerprint fail-closed
+# ==========================================================
 verify_gpg_fingerprint() {
     local key_file="$1"
+
     if [[ -z "$EXPECTED_GPG_FINGERPRINT" ]]; then
         return 0
     fi
 
     echo -e "${BLUE}[*] Validating GPG keyring fingerprint...${NC}"
+
+    if [[ ! -s "$key_file" ]]; then
+        echo -e "${RED}✖ SECURITY ALERT: GPG key file is empty or missing: $key_file${NC}" >&2
+        exit 1
+    fi
+
+    if ! gpg --show-keys "$key_file" >/dev/null 2>&1; then
+        echo -e "${RED}✖ SECURITY ALERT: File is not a valid GPG key: $key_file${NC}" >&2
+        exit 1
+    fi
+
     local actual expected
-    actual=$(gpg --show-keys --with-fingerprint --with-colons "$key_file" 2>/dev/null | awk -F: '/^fpr:/ {print $10; exit}' | tr -d ' ')
+    actual=$(set -o pipefail; gpg --show-keys --with-fingerprint --with-colons "$key_file" 2>/dev/null \
+        | awk -F: '/^fpr:/ {print $10; exit}' | tr -d ' ')
+
     expected=$(echo "$EXPECTED_GPG_FINGERPRINT" | tr -d ' ')
+
+    if [[ -z "$actual" ]]; then
+        echo -e "${RED}✖ SECURITY ALERT: Unable to extract fingerprint from key.${NC}" >&2
+        exit 1
+    fi
 
     if [[ "$actual" == "$expected" ]]; then
         echo -e "${GREEN}✔ GPG fingerprint verified: ${actual}${NC}"
@@ -68,44 +145,125 @@ verify_gpg_fingerprint() {
     fi
 }
 
+# ==========================================================
+# SHA-256 fail-closed
+# ==========================================================
 verify_sha256() {
     local deb_file="$1"
     local sha_url="${2:-}"
 
     if [[ -z "$sha_url" || "$sha_url" == "null" ]]; then
-        echo -e "${YELLOW}[!] No checksum asset provided in release. Skipping hash verification.${NC}"
-        return 0
+        echo -e "${RED}✖ No checksum asset provided in this release.${NC}" >&2
+        echo -e "${YELLOW}  Refusing to install without integrity verification.${NC}" >&2
+        echo -e "${YELLOW}  If this is expected, use option [1] (APT repository) or [3] (build from source).${NC}" >&2
+        exit 1
     fi
 
-    if ! command -v sha256sum >/dev/null 2>&1; then
-        echo -e "${YELLOW}[!] 'sha256sum' utility not found. Skipping hash verification.${NC}"
-        return 0
+    local sha_cmd=""
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha_cmd="sha256sum"
+    elif command -v shasum >/dev/null 2>&1; then
+        sha_cmd="shasum -a 256"
+    else
+        echo -e "${RED}✖ Neither 'sha256sum' nor 'shasum' found. Cannot verify integrity.${NC}" >&2
+        exit 1
     fi
 
     echo -e "${BLUE}[*] Verifying package integrity (SHA-256)...${NC}"
+
     local deb_name expected actual
     deb_name=$(basename "$deb_file")
 
-    expected=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 "$sha_url" 2>/dev/null | grep -F "$deb_name" | awk '{print $1}' | head -n1 || true)
+    local checksums
+    checksums=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+        "$sha_url" 2>/dev/null || true)
 
-    if [[ -z "$expected" ]]; then
-        expected=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 "$sha_url" 2>/dev/null | head -n1 | awk '{print $1}' || true)
+    if [[ -z "$checksums" ]]; then
+        echo -e "${RED}✖ Failed to download checksums from ${sha_url}${NC}" >&2
+        exit 1
     fi
 
-    actual=$(sha256sum "$deb_file" | awk '{print $1}')
+    expected=$(echo "$checksums" | grep -F "$deb_name" | awk '{print $1}' | head -n1 || true)
 
-    if [[ -n "$expected" && "$actual" == "$expected" ]]; then
+    if [[ -z "$expected" ]] && [[ "$(echo "$checksums" | wc -w)" -eq 1 ]]; then
+        expected=$(echo "$checksums" | tr -d '[:space:]')
+    fi
+
+    if [[ -z "$expected" ]]; then
+        echo -e "${RED}✖ SECURITY ERROR: No checksum found for '${deb_name}' in ${sha_url}${NC}" >&2
+        exit 1
+    fi
+
+    actual=$($sha_cmd "$deb_file" | awk '{print $1}')
+
+    if [[ "$actual" == "$expected" ]]; then
         echo -e "${GREEN}✔ SHA-256 hash verified: ${actual}${NC}"
-    elif [[ -n "$expected" && "$actual" != "$expected" ]]; then
+    else
         echo -e "${RED}✖ SECURITY ERROR: SHA-256 hash mismatch! Aborting installation.${NC}" >&2
         echo -e "   Expected: $expected" >&2
         echo -e "   Computed: $actual" >&2
         exit 1
-    else
-        echo -e "${YELLOW}[!] Unable to parse checksum from ${sha_url}. Skipping check.${NC}"
     fi
 }
 
+# ==========================================================
+# Prioritized checksum asset resolution
+# ==========================================================
+find_checksum_url() {
+    local release_json="$1"
+    local deb_name="$2"
+    local url
+
+    url=$(echo "$release_json" | jq -r --arg n "$deb_name" '
+        .assets[]
+        | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum"))
+        | .browser_download_url
+    ' | head -n1)
+    [ -n "$url" ] && { echo "$url"; return 0; }
+
+    url=$(echo "$release_json" | jq -r '
+        .assets[]
+        | select(.name | test("^(checksums?|SHA256SUMS|sha256sums)(\\.txt)?$"; "i"))
+        | .browser_download_url
+    ' | head -n1)
+    [ -n "$url" ] && { echo "$url"; return 0; }
+
+    url=$(echo "$release_json" | jq -r '
+        .assets[]
+        | select(.name | test("\\.sha256$"; "i"))
+        | .browser_download_url
+    ' | head -n1)
+    [ -n "$url" ] && { echo "$url"; return 0; }
+
+    return 1
+}
+
+# ==========================================================
+# Auto-tracking after install (options 2/3)
+# ==========================================================
+ensure_debup_tracked() {
+    local sources_file="/etc/debup/sources.list"
+    local entry="debup|https://github.com/Ruraam/debup"
+
+    if [ ! -f "$sources_file" ]; then
+        $SUDO mkdir -p /etc/debup
+        $SUDO touch "$sources_file"
+        $SUDO chmod 644 "$sources_file"
+    fi
+
+    # Regex anchor, not -F (which treats ^ literally)
+    if $SUDO grep -q '^debup|' "$sources_file" 2>/dev/null; then
+        echo -e "${GRAY}[i] debup is already tracked for self-updates.${NC}"
+        return 0
+    fi
+
+    echo "$entry" | $SUDO tee -a "$sources_file" >/dev/null
+    echo -e "${GREEN}✔ debup added to self-update tracking (dbp -u).${NC}"
+}
+
+# ==========================================================
+# Banner + menu
+# ==========================================================
 if [[ "$NON_INTERACTIVE" == false ]]; then
     clear
     echo -e "${BOLD}${RED}"
@@ -124,7 +282,7 @@ if [[ "$NON_INTERACTIVE" == false ]]; then
        ****** ** *    *     / _` |/ _ \ '_ \| | | | '_ \
            ********        | (_| |  __/ |_) | |_| | |_) |
                             \__,_|\___|_.__/ \__,_| .__/
-                            Hybrid Package Manager|_|
+                                                  |_|
 EOF
     echo -e "${NC}"
 
@@ -133,7 +291,7 @@ EOF
     echo -e "${BLUE}------------------------------------------------------------${NC}\n"
     echo -e ""
     echo -e "${BOLD}Please choose an installation method:${NC}\n"
-    echo -e "  ${YELLOW}[1]${NC} ${BOLD}APT Repository (Recommended)${NC}"
+    echo -e "${YELLOW}[1]${NC} ${BOLD}APT Repository (Recommended)${NC}"
     echo -e "      ${GRAY}Installs GPG key and adds the official APT repository.${NC}"
     echo -e "      ${GRAY}Enables automatic updates with 'apt update && apt upgrade'.${NC}\n"
     echo -e "  ${YELLOW}[2]${NC} ${BOLD}Download Latest Release (.deb)${NC}"
@@ -147,8 +305,10 @@ EOF
 
     echo -e "  ${YELLOW}[4]${NC} ${RED}Exit${NC}\n"
 
-    read -rp "Selection [1-4] (default: 1): " choice </dev/tty
-    choice=${choice:-1}
+    if ! prompt_read choice "Selection [1-4] (default: 1): " "1"; then
+        echo -e "${RED}✖ No terminal available. Use --non-interactive (-y) for automated setup.${NC}" >&2
+        exit 1
+    fi
 else
     choice=1
 fi
@@ -162,20 +322,56 @@ case "$choice" in
         # ==========================================================
         echo -e "${CYAN}[*] Setting up official Debup APT repository...${NC}"
 
-        $SUDO apt-get update -qq
-        $SUDO apt-get install -y -qq curl gnupg lsb-release >/dev/null
+        $SUDO apt-get update -qq || echo -e "${YELLOW}[!] apt update had warnings, continuing...${NC}"
+
+        if ! command -v curl >/dev/null 2>&1 || ! command -v gpg >/dev/null 2>&1; then
+            echo -e "${BLUE}[*] Installing required tools (curl, gnupg)...${NC}"
+            $SUDO apt-get install -y -qq curl gnupg >/dev/null
+        fi
 
         KEYRING_DIR="/etc/apt/keyrings"
         KEYRING_PATH="${KEYRING_DIR}/debup.gpg"
         SOURCES_LIST="/etc/apt/sources.list.d/debup.list"
 
+        echo -e "${CYAN}[*] Checking GPG key availability...${NC}"
+        HTTP_PROBE=$(curl -sIL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+            -o /dev/null -w '%{http_code} %{content_type}' "$REPO_GPG_URL" 2>/dev/null || echo "000 unknown")
+
+        HTTP_CODE="${HTTP_PROBE%% *}"
+        CONTENT_TYPE="${HTTP_PROBE#* }"
+
+        if [[ "$HTTP_CODE" != "200" ]]; then
+            echo -e "${RED}✖ GPG URL returned HTTP ${HTTP_CODE} (expected 200). Aborting.${NC}" >&2
+            echo -e "${YELLOW}  URL: ${REPO_GPG_URL}${NC}" >&2
+            exit 1
+        fi
+
+        if [[ "$CONTENT_TYPE" == text/html* ]]; then
+            echo -e "${RED}✖ GPG URL returns HTML (likely a 404 page). Aborting.${NC}" >&2
+            exit 1
+        fi
+
+        # Download to temp, verify BEFORE writing to /etc
+        echo -e "${CYAN}[*] Fetching GPG signing key...${NC}"
+        TMP_KEY=$(mktemp /tmp/debup-key.XXXXXX.gpg)
+        chmod 600 "$TMP_KEY"
+        _DEBUP_CLEANUP_TMPKEY="$TMP_KEY"
+
+        if ! curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+                -o "$TMP_KEY" "$REPO_GPG_URL"; then
+            echo -e "${RED}✖ Failed to fetch GPG key from ${REPO_GPG_URL}${NC}" >&2
+            exit 1
+        fi
+
+        verify_gpg_fingerprint "$TMP_KEY"
+
         echo -e "${CYAN}[*] Importing GPG signing key...${NC}"
         $SUDO mkdir -p "$KEYRING_DIR"
-        curl -fsSL "$REPO_GPG_URL" | $SUDO gpg --dearmor -o "$KEYRING_PATH" --yes
+        $SUDO gpg --dearmor --yes -o "${KEYRING_PATH}.tmp" "$TMP_KEY"
+        $SUDO mv "${KEYRING_PATH}.tmp" "$KEYRING_PATH"
         $SUDO chmod 644 "$KEYRING_PATH"
-
-        # Fingerprint integrity check (if configured)
-        verify_gpg_fingerprint "$KEYRING_PATH"
+        rm -f "$TMP_KEY"
+        _DEBUP_CLEANUP_TMPKEY=""
 
         echo -e "${CYAN}[*] Configuring repository sources list...${NC}"
         echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | $SUDO tee "$SOURCES_LIST" >/dev/null
@@ -183,6 +379,11 @@ case "$choice" in
         echo -e "${CYAN}[*] Refreshing package lists and installing debup...${NC}"
         $SUDO apt-get update -qq
         $SUDO apt-get install -y debup
+
+        if ! command -v dbp >/dev/null 2>&1 && ! command -v debup >/dev/null 2>&1; then
+            echo -e "${RED}✖ Installation completed but 'dbp'/'debup' not found in PATH.${NC}" >&2
+            exit 1
+        fi
 
         echo -e "\n${GREEN}✔ Debup was installed successfully via the official APT repository!${NC}"
         echo -e "You will now receive seamless updates whenever you run ${CYAN}apt upgrade${NC}."
@@ -195,46 +396,97 @@ case "$choice" in
         echo -e "${BLUE}[*] Fetching latest release info from GitHub API...${NC}"
 
         TEMP_DIR=$(mktemp -d "/tmp/debup-install.XXXXXX")
-        trap 'rm -rf "$TEMP_DIR"' EXIT INT TERM
+        _DEBUP_CLEANUP_TEMPDIR="$TEMP_DIR"
 
         if ! command -v jq >/dev/null 2>&1; then
             echo -e "${YELLOW}[!] 'jq' is missing. Installing jq temporarily...${NC}"
             $SUDO apt-get update -qq && $SUDO apt-get install -y -qq jq >/dev/null
         fi
 
-        RELEASE_JSON=$(curl -sSL -H "User-Agent: debup-installer" "$API_URL")
+        RELEASE_JSON=$(curl -sSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+            -H "User-Agent: debup-installer" "$API_URL")
+
         LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name // empty' 2>/dev/null)
 
         if [ -z "$LATEST_TAG" ]; then
-            echo -e "${RED}Error: Unable to fetch release information from GitHub API.${NC}"
-            sleep 3
-            clear
+            echo -e "${RED}Error: Unable to fetch release information from GitHub API.${NC}" >&2
             exit 1
         fi
 
         echo -e "Latest detected release: ${GREEN}${LATEST_TAG}${NC}"
 
-        DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
+        ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
+        case "$ARCH" in
+            amd64) ARCH_ALIASES="amd64|x86_64|x64" ;;
+            arm64) ARCH_ALIASES="arm64|aarch64" ;;
+            armhf) ARCH_ALIASES="armhf|armv7l" ;;
+            i386)  ARCH_ALIASES="i386|i686|x86" ;;
+            *)     ARCH_ALIASES="$ARCH" ;;
+        esac
+
+        DEB_URL=$(echo "$RELEASE_JSON" | jq -r --arg arch "$ARCH_ALIASES" '
+            .assets[]
+            | select(.name | endswith(".deb"))
+            | select(.name | test("(" + $arch + ")"; "i"))
+            | .browser_download_url
+        ' | head -n1)
 
         if [ -z "$DEB_URL" ]; then
-            echo -e "${RED}Error: No .deb package found in release ${LATEST_TAG}.${NC}"
-            sleep 3
+            DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
+            echo -e "${YELLOW}[!] No .deb matching architecture '$ARCH'. Falling back to first .deb.${NC}" >&2
+        fi
+
+        if [ -z "$DEB_URL" ]; then
+            echo -e "${RED}Error: No .deb package found in release ${LATEST_TAG}.${NC}" >&2
             exit 1
         fi
 
         DEB_FILE="${TEMP_DIR}/debup_latest.deb"
         echo -e "${BLUE}[*] Downloading package:${NC} ${GRAY}${DEB_URL}${NC}"
-        curl -sSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 --progress-bar -o "$DEB_FILE" "$DEB_URL"
+        if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 \
+                --progress-bar -o "$DEB_FILE" "$DEB_URL"; then
+            echo -e "${RED}✖ Failed to download ${DEB_URL}${NC}" >&2
+            exit 1
+        fi
 
-        # Checksum verification (SHA-256)
-        SHA_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("sha256|SHA256|checksums"; "i")) | .browser_download_url' | head -n1)
+        if command -v dpkg-deb >/dev/null 2>&1; then
+            DEB_ARCH=$(dpkg-deb -f "$DEB_FILE" Architecture 2>/dev/null || true)
+            if [[ -n "$DEB_ARCH" && "$DEB_ARCH" != "$ARCH" && "$DEB_ARCH" != "all" ]]; then
+                echo -e "${RED}✖ Downloaded package architecture (${DEB_ARCH}) is incompatible with your system (${ARCH}).${NC}" >&2
+                exit 1
+            fi
+        else
+            echo -e "${YELLOW}[!] 'dpkg-deb' not found. Skipping post-download architecture check.${NC}" >&2
+        fi
+
+        DEB_NAME=$(basename "$DEB_URL")
+        SHA_URL=$(find_checksum_url "$RELEASE_JSON" "$DEB_NAME" || true)
+
+        if [ -z "$SHA_URL" ]; then
+            echo -e "${RED}✖ No checksum asset found for ${DEB_NAME}.${NC}" >&2
+            exit 1
+        fi
+
         verify_sha256 "$DEB_FILE" "$SHA_URL"
 
         echo -e "${BLUE}[*] Installing package using APT...${NC}"
         $SUDO apt-get update -qq || true
-        $SUDO apt-get install -y "$DEB_FILE"
+        if ! $SUDO apt-get install -y "$DEB_FILE"; then
+            echo -e "${RED}✖ Failed to install ${DEB_FILE}.${NC}" >&2
+            echo -e "${YELLOW}  Try: sudo apt-get install -f${NC}" >&2
+            exit 1
+        fi
+
+        if ! command -v dbp >/dev/null 2>&1 && ! command -v debup >/dev/null 2>&1; then
+            echo -e "${RED}✖ Installation completed but 'dbp'/'debup' not found in PATH.${NC}" >&2
+            exit 1
+        fi
+
+        ensure_debup_tracked
 
         echo -e "\n${GREEN}✔ debup ${LATEST_TAG} has been installed successfully!${NC}"
+
+        cleanup_tempdir_now
         ;;
 
     3)
@@ -243,47 +495,121 @@ case "$choice" in
         # ==========================================================
         echo -e "${BLUE}[*] Setting up build environment...${NC}"
 
-        if [ -d "debup-pkg" ]; then
-            echo -e "${BLUE}[*] Local repository detected.${NC}"
-            REPO_DIR="$(pwd)"
-        else
-            TARGET_DIR="${HOME}/debup"
-            echo -e "${BLUE}[*] Cloning repository to ${TARGET_DIR}...${NC}"
-
-            if [ -d "$TARGET_DIR/.git" ]; then
-                echo -e "${YELLOW}[!] Directory exists. Updating via git pull...${NC}"
-                cd "$TARGET_DIR"
-                git pull
-            else
-                git clone https://github.com/Ruraam/debup.git "$TARGET_DIR"
-                cd "$TARGET_DIR"
+        missing_build_deps=()
+        for cmd in git dpkg-deb; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+                missing_build_deps+=("$cmd")
             fi
-            REPO_DIR="$TARGET_DIR"
+        done
+
+        if [ "${#missing_build_deps[@]}" -gt 0 ]; then
+            echo -e "${YELLOW}[!] Missing build dependencies: ${missing_build_deps[*]}${NC}"
+            echo -e "${BLUE}[*] Installing required tools...${NC}"
+            $SUDO apt-get update -qq || true
+            if ! $SUDO apt-get install -y -qq git dpkg-dev >/dev/null; then
+                echo -e "${RED}✖ Failed to install build dependencies.${NC}" >&2
+                echo -e "${YELLOW}  Install manually: sudo apt-get install git dpkg-dev${NC}" >&2
+                exit 1
+            fi
+        fi
+
+        ORIGINAL_PWD="$(pwd)"
+        BUILD_DIR=$(mktemp -d "/tmp/debup-build.XXXXXX")
+        _DEBUP_CLEANUP_TEMPDIR="$BUILD_DIR"
+
+        if [ -d "debup-pkg/DEBIAN" ] && [ -f "debup-pkg/usr/local/bin/debup" ]; then
+            echo -e "${BLUE}[*] Local source tree detected in ${ORIGINAL_PWD}.${NC}"
+            REPO_DIR="$ORIGINAL_PWD"
+
+            if [ "$(id -u)" -ne 0 ]; then
+                foreign=$(find "$REPO_DIR/debup-pkg" \
+                    \( -not -user "$(id -un)" -o -not -group "$(id -gn)" \) \
+                    -print -quit 2>/dev/null || true)
+                if [ -n "$foreign" ]; then
+                    echo -e "${YELLOW}[!] Some files in your local source tree belong to another user.${NC}" >&2
+                    echo -e "${YELLOW}    (Usually happens after a previous 'sudo dpkg-deb --build'.)${NC}" >&2
+                    echo -e "${YELLOW}    Fix ownership with:${NC}" >&2
+                    echo -e "${CYAN}    sudo chown -R $(id -u):$(id -g) ${REPO_DIR}/debup-pkg${NC}" >&2
+                    echo -e "${YELLOW}    Then re-run this installer.${NC}" >&2
+                    exit 1
+                fi
+            fi
+        else
+            echo -e "${BLUE}[*] Cloning repository to ${BUILD_DIR}...${NC}"
+            if ! git clone --depth 1 https://github.com/Ruraam/debup.git "$BUILD_DIR/src"; then
+                echo -e "${RED}✖ git clone failed.${NC}" >&2
+                exit 1
+            fi
+            REPO_DIR="$BUILD_DIR/src"
         fi
 
         echo -e "${BLUE}[*] Configuring file permissions...${NC}"
-        chmod 755 debup-pkg/DEBIAN/postinst debup-pkg/DEBIAN/postrm 2>/dev/null || true
-        chmod 755 debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp 2>/dev/null || true
+        for f in "$REPO_DIR"/debup-pkg/DEBIAN/postinst \
+                 "$REPO_DIR"/debup-pkg/DEBIAN/postrm \
+                 "$REPO_DIR"/debup-pkg/usr/local/bin/debup \
+                 "$REPO_DIR"/debup-pkg/usr/local/bin/dbp; do
+            [ -f "$f" ] && chmod 755 "$f" 2>/dev/null || true
+        done
+
+        RAW_OUTPUT="${ORIGINAL_PWD}/debup.deb"
+        if command -v realpath >/dev/null 2>&1; then
+            OUTPUT_DEB="$(realpath -m "$RAW_OUTPUT")"
+        else
+            OUTPUT_DEB="$(cd "$(dirname "$RAW_OUTPUT")" && pwd)/$(basename "$RAW_OUTPUT")"
+        fi
 
         echo -e "${BLUE}[*] Compiling .deb package with dpkg-deb...${NC}"
-        dpkg-deb --build --root-owner-group debup-pkg debup.deb
+        if ! dpkg-deb --build --root-owner-group "$REPO_DIR/debup-pkg" "$OUTPUT_DEB"; then
+            echo -e "${RED}✖ dpkg-deb build failed.${NC}" >&2
+            exit 1
+        fi
 
-        echo -e "\n${GREEN}✔ Package built successfully: ${REPO_DIR}/debup.deb${NC}\n"
+        echo -e "\n${GREEN}✔ Package built successfully: ${OUTPUT_DEB}${NC}\n"
 
         if [[ "$NON_INTERACTIVE" == true ]]; then
             install_choice="Y"
         else
-            read -rp "Would you like to install debup now using APT? [Y/n]: " install_choice </dev/tty
-            install_choice=${install_choice:-Y}
+            if ! prompt_read install_choice "Would you like to install debup now using APT? [Y/n]: " "Y"; then
+                echo -e "${RED}✖ No terminal available. Re-run with -y.${NC}" >&2
+                exit 1
+            fi
         fi
 
         if [[ "$install_choice" =~ ^[YyOosSjJ]$ ]]; then
             echo -e "${BLUE}[*] Installing generated package...${NC}"
-            $SUDO apt-get install -y ./debup.deb
+
+            # APT requires either an absolute path or a ./-prefixed one.
+            # OUTPUT_DEB is already absolute (realpath), but guard anyway.
+            APT_TARGET="$OUTPUT_DEB"
+            case "$APT_TARGET" in
+                /*) ;;                              # already absolute: OK
+                *)  APT_TARGET="./$APT_TARGET" ;;   # force local-file interpretation
+            esac
+
+            if ! $SUDO apt-get install -y "$APT_TARGET"; then
+                echo -e "${RED}✖ Installation failed.${NC}" >&2
+                echo -e "${YELLOW}  Try: sudo apt-get install -f${NC}" >&2
+                echo -e "${YELLOW}  Package preserved at: ${OUTPUT_DEB}${NC}" >&2
+                cleanup_tempdir_now
+                exit 1
+            fi
+
+            if ! command -v dbp >/dev/null 2>&1 && ! command -v debup >/dev/null 2>&1; then
+                echo -e "${RED}✖ Installation completed but 'dbp'/'debup' not found in PATH.${NC}" >&2
+                cleanup_tempdir_now
+                exit 1
+            fi
+
+            ensure_debup_tracked
+
             echo -e "\n${GREEN}✔ debup has been installed successfully!${NC}"
+
+            cleanup_tempdir_now
         else
             echo -e "${YELLOW}[i] Installation skipped.${NC}"
-            echo -e "You can manually install it anytime with: ${CYAN}${SUDO:+sudo }apt install ${REPO_DIR}/debup.deb${NC}"
+            echo -e "You can manually install it anytime with: ${CYAN}${SUDO:+sudo }apt install ${OUTPUT_DEB}${NC}"
+
+            cleanup_tempdir_now
         fi
         ;;
 
