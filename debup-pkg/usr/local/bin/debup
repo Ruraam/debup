@@ -83,6 +83,54 @@ GRAY='\033[0;90m'
 MAGENTA='\033[0;35m'
 NC='\033[0m'
 
+# ─────────────────────────────────────────────────────────────
+# FIX #8 — lecture interactive safe (TTY / pipe / non-interactif)
+# Usage : prompt_read <varname> [prompt]
+# Retourne 1 si non-interactif (défaut = "n")
+# ─────────────────────────────────────────────────────────────
+prompt_read() {
+    local _var="$1"
+    local _prompt="${2:-}"
+    local _answer=""
+
+    [ -n "$_prompt" ] && echo -en "$_prompt" >&2
+
+    if [ -t 0 ]; then
+        IFS= read -r _answer || _answer=""
+    elif [ -e /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+        IFS= read -r _answer </dev/tty || _answer=""
+    else
+        echo -e "${YELLOW}⚠ ${MSG_NO_TTY:-Non-interactive mode: defaulting to 'n'.}${NC}" >&2
+        printf -v "$_var" '%s' "n"
+        return 1
+    fi
+
+    printf -v "$_var" '%s' "$_answer"
+    return 0
+}
+
+# ─────────────────────────────────────────────────────────────
+# FIX #10 — normalisation des tags GitHub → version dpkg-comparable
+# "release-v1.2.3" → "1.2.3" | "app-v1.2.3-beta.1" → "1.2.3-beta.1"
+# "cli-v0.5.0-linux-amd64" → "0.5.0" | "1:1.2.3-1" → "1:1.2.3-1"
+# ─────────────────────────────────────────────────────────────
+normalize_gh_tag() {
+    local tag="$1"
+    local version=""
+
+    version=$(printf '%s' "$tag" | sed -E 's/^[A-Za-z][A-Za-z0-9_-]*-//')
+    version="${version#v}"
+
+    if ! printf '%s' "$version" | grep -qE '^[0-9]'; then
+        version="${tag#v}"
+    fi
+
+    version=$(printf '%s' "$version" | sed -E \
+        's/-(linux|darwin|windows|freebsd|debian|ubuntu|osx|win)(-(amd64|arm64|x86_64|aarch64|i[3-6]86|armhf))?$//i')
+
+    printf '%s' "$version"
+}
+
 show_banner() {
     echo -e "${BOLD}${RED}"
     cat << 'EOF'
@@ -125,7 +173,7 @@ fi
 missing=0
 for cmd in curl jq dpkg dpkg-deb apt-get apt-cache apt-mark; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-        printf "${RED}%s : '%s' %s${NC}\n" "${MSG_ERR_PREFIX:-Erreur}" "$cmd" "${MSG_CMD_REQUIRED:-est requise.}" >&2
+        printf "${RED}%s : '%s' %s${NC}\n" "${MSG_ERR_PREFIX:-Error}" "$cmd" "${MSG_CMD_REQUIRED_SUFFIX:-is required.}" >&2
         missing=1
     fi
 done
@@ -161,8 +209,6 @@ get_arch_regex() {
         *)     echo "(^|[-_.])(${ARCH}|all)([-_.]|$)" ;;
     esac
 }
-
-ARCH_REGEX=$(get_arch_regex)
 
 run_apt_styled() {
     local status=0
@@ -238,8 +284,17 @@ set_github_token() {
     local token="$1"
 
     if [ -z "$token" ]; then
+        # FIX #8 — pas de /dev/tty en CI : message explicite
+        if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
+            echo -e "${RED}${MSG_ERR_NO_TTY:-Aucun terminal disponible ; passez le token en argument : dbp token <PAT>}${NC}" >&2
+            return 1
+        fi
         echo -en "${CYAN}${MSG_ENTER_PAT:-Enter GitHub Personal Access Token: }${NC} "
-        read -rs token </dev/tty
+        if [ -t 0 ]; then
+            IFS= read -rs token || token=""
+        else
+            IFS= read -rs token </dev/tty || token=""
+        fi
         echo ""
     fi
 
@@ -451,13 +506,15 @@ check_and_update() {
         return 1
     fi
 
-    local remote_ver="${latest_tag#v}"
+    # FIX #10 — normalisation des tags
+    local remote_ver
+    remote_ver=$(normalize_gh_tag "$latest_tag")
 
     local local_ver=""
     if [ -n "$PKG_NAME" ]; then
         local_ver=$(dpkg-query -W -f='${Version}' "$PKG_NAME" 2>/dev/null | tr -d '\r')
     fi
-    local_ver="${local_ver#v}"
+    local_ver=$(normalize_gh_tag "$local_ver")
 
     echo -e "${YELLOW}${MSG_PACKAGE_HEADER}${NC}"
     echo -e "${PKG_NAME:-$MSG_NEW_PACKAGE} ${CYAN}${local_ver:-$MSG_NOT_INSTALLED}${NC} ${GRAY}(${repo_path:-$REPO_URL})${NC}"
@@ -502,6 +559,9 @@ check_and_update() {
 
     if [ "$DRY_RUN" = "true" ]; then
         echo -e "${BLUE}---------------------------------------${NC}"
+        if [ "$latest_tag" != "$remote_ver" ]; then
+            printf "${GRAY}ℹ ${MSG_VERSION_NORMALIZED:-Version normalized: %s → %s}${NC}\n" "$latest_tag" "$remote_ver"
+        fi
         printf "${YELLOW}%b${NC} ${GRAY}%s${NC}\n" "$(printf "$MSG_DRY_WOULD_DOWNLOAD" "")" "${deb_url}"
         printf "${YELLOW}%b${NC} ${CYAN}%s${NC} ${GREEN}(%s)${NC}\n" "$(printf "$MSG_DRY_WOULD_INSTALL" "" "")" "${PKG_NAME:-$chosen_deb}" "${latest_tag}"
         echo -e "${BLUE}---------------------------------------${NC}"
@@ -511,8 +571,9 @@ check_and_update() {
     if [ "$ASSUME_YES" != "true" ]; then
         echo -e "${BLUE}---------------------------------------${NC}"
         echo -e "${CYAN}${MSG_PROMPT_CONFIRM_INSTALL}${NC}"
-        read -r confirm </dev/tty
-        if [[ ! "$confirm" =~ ^[oOyYsSjJ]$ ]]; then
+        local confirm=""
+        prompt_read confirm "" || true
+        if [[ ! "$confirm" =~ ^[oOyY]$ ]]; then
             echo -e "${BLUE}---------------------------------------${NC}"
             echo -e "${RED}${MSG_OP_CANCELED}${NC}"
             return 3
@@ -590,8 +651,8 @@ check_and_update() {
 
         if [ "${#check_scripts[@]}" -gt 0 ]; then
             printf "${YELLOW}%b${NC}\n" "$(printf "${MSG_PROMPT_ROOT_SCRIPTS_WARN:-⚠ Root scripts detected: %s}" "${check_scripts[*]}")"
-            echo -en "${CYAN}${MSG_PROMPT_INSPECT_SCRIPTS:-Inspect them before install? [y/N]: }${NC}"
-            read -r view_scripts </dev/tty
+            local view_scripts=""
+            prompt_read view_scripts "${MSG_PROMPT_INSPECT_SCRIPTS:-Inspect them before install? [y/N]: }" || true
             if [[ "$view_scripts" =~ ^[oOyY]$ ]]; then
                 local inspect_tmp="$TEMP_DIR/inspect_view"
                 mkdir -p "$inspect_tmp"
@@ -603,8 +664,8 @@ check_and_update() {
                 done
                 rm -rf "$inspect_tmp"
 
-                echo -en "${CYAN}${MSG_PROMPT_CONFIRM_AFTER_INSPECT:-Confirm install? [y/N]: }${NC}"
-                read -r confirm_post_inspect </dev/tty
+                local confirm_post_inspect=""
+                prompt_read confirm_post_inspect "${MSG_PROMPT_CONFIRM_AFTER_INSPECT:-Confirm install? [y/N]: }" || true
                 if [[ ! "$confirm_post_inspect" =~ ^[oOyY]$ ]]; then
                     echo -e "${BLUE}---------------------------------------${NC}"
                     echo -e "${RED}${MSG_OP_CANCELED}${NC}"
@@ -625,7 +686,7 @@ check_and_update() {
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${GREEN}%b${NC}\n\n" "$(printf "$MSG_SUCCESS_INSTALLED" "${PKG_NAME}" "${latest_tag}")"
 
-        if [ -n "$PKG_NAME" ] && ! grep -q "^${PKG_NAME}|" "$SOURCES_FILE" 2>/dev/null; then
+        if [ -n "$PKG_NAME" ] && ! grep -qF "${PKG_NAME}|" "$SOURCES_FILE" 2>/dev/null; then
             local tmp_sources
             tmp_sources=$(mktemp)
             cat "$SOURCES_FILE" > "$tmp_sources" 2>/dev/null || true
@@ -654,8 +715,21 @@ debup_search() {
         return 1
     fi
 
+    # FIX #9 — encodage URL safe (jq @uri)
     local gh_query
-    gh_query=$(echo "$query" | tr ' ' '+')
+    if command -v jq >/dev/null 2>&1; then
+        gh_query=$(printf '%s in:name' "$query" | jq -sRr @uri)
+    else
+        gh_query=$(printf '%s in:name' "$query" | sed \
+            -e 's/%/%25/g' \
+            -e 's/ /%20/g' \
+            -e 's/&/%26/g' \
+            -e 's/#/%23/g' \
+            -e 's/?/%3F/g' \
+            -e 's/+/%2B/g' \
+            -e 's/=/%3D/g' \
+            -e 's|/|%2F|g')
+    fi
 
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_SEARCHING_GH" "$query")"
@@ -681,7 +755,7 @@ debup_search() {
 
             printf "${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${GRAY}(APT)${NC}\n     ${GRAY}%s${NC}\n" \
                 "$display_idx" "$apt_pkg" "${apt_desc:0:70}"
-            ((display_idx++))
+            display_idx=$((display_idx + 1))
         done <<< "$apt_results"
     else
         echo -e " ${GRAY}${MSG_SEARCH_NO_APT}${NC}"
@@ -693,7 +767,7 @@ debup_search() {
     local raw_results
     raw_results=$(curl -sS --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
         "${AUTH_HEADER[@]}" \
-        "https://api.github.com/search/repositories?q=${gh_query}+in:name&sort=stars&order=desc&per_page=10")
+        "https://api.github.com/search/repositories?q=${gh_query}&sort=stars&order=desc&per_page=10")
 
     local raw_count
     raw_count=$(echo "$raw_results" | jq -r '.items | length' 2>/dev/null)
@@ -701,9 +775,6 @@ debup_search() {
     if [ -n "$raw_count" ] && [ "$raw_count" -gt 0 ]; then
         echo -e "${GRAY}${MSG_VERIFYING_DEBS}${NC}"
 
-        local repos=()
-        local stars_list=()
-        local desc_list=()
         local gh_valid=0
 
         while IFS=$'\t' read -r repo stars desc; do
@@ -716,18 +787,14 @@ debup_search() {
             has_deb=$(filter_compatible_debs "$deb_assets" | head -n1)
 
             if [ -n "$has_deb" ]; then
-                repos+=("$repo")
-                stars_list+=("$stars")
-                desc_list+=("${desc:-$MSG_NO_DESC}")
-
                 global_targets[display_idx]="$repo"
                 global_types[display_idx]="GH"
 
                 printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\n     ${GRAY}%s${NC}\n" \
                     "$display_idx" "$repo" "$stars" "${desc:0:70}"
 
-                ((display_idx++))
-                ((gh_valid++))
+                display_idx=$((display_idx + 1))
+                gh_valid=$((gh_valid + 1))
                 [ "$gh_valid" -ge 5 ] && break
             fi
         done < <(echo "$raw_results" | jq -r '.items[]? | [.full_name, (.stargazers_count|tostring), (.description // "")] | @tsv')
@@ -747,12 +814,13 @@ debup_search() {
         return 0
     fi
 
-    echo -en "${CYAN}${MSG_PROMPT_SELECT_NUM:-Enter n° of packages to install (e.g., 1 2 3 or 1-3) [default: cancel]: }${NC}"
-    local raw_input
-    read -r raw_input </dev/tty
+    local raw_input=""
+    prompt_read raw_input "${MSG_PROMPT_SELECT_NUM:-Enter n° of packages to install (e.g., 1 2 3 or 1-3) [default: cancel]: }" || raw_input=""
     [ -z "$raw_input" ] && { echo -e "${CYAN}${MSG_OP_CANCELED}${NC}"; return 0; }
 
-    local -a packagesnum=(${raw_input//,/ })
+    # FIX #5 — word splitting / globbing safe
+    local -a packagesnum=()
+    read -ra packagesnum <<< "${raw_input//,/ }"
 
     local -a selected_indices=()
 
@@ -774,7 +842,8 @@ debup_search() {
 
     [ "${#selected_indices[@]}" -eq 0 ] && { echo -e "${RED}${MSG_OP_CANCELED}${NC}"; return 0; }
 
-    local -a unique_indices=($(printf "%s\n" "${selected_indices[@]}" | sort -nu))
+    local -a unique_indices=()
+    read -ra unique_indices < <(printf "%s\n" "${selected_indices[@]}" | sort -nu)
 
     for choice in "${unique_indices[@]}"; do
         local selected_target="${global_targets[choice]}"
@@ -809,7 +878,8 @@ debup_search() {
 
             if [ -z "$matching_deb" ]; then
                 printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_WARN_NO_ARCH_MATCH" "$ARCH")"
-                read -rp "$MSG_PROMPT_FORCE_INSTALL" force_install </dev/tty
+                local force_install=""
+                prompt_read force_install "$MSG_PROMPT_FORCE_INSTALL" || force_install="n"
                 if [[ ! "$force_install" =~ ^[oOyYsSjJ]$ ]]; then
                     echo -e "${CYAN}${MSG_INSTALL_CANCELED}${NC}"
                     continue
@@ -916,7 +986,7 @@ debup_check_updates() {
 
         local local_ver=""
         local_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null | tr -d '\r')
-        local_ver="${local_ver#v}"
+        local_ver=$(normalize_gh_tag "$local_ver")
 
         local repo_path
         repo_path=$(echo "$repo" | sed -E 's#^https?://github.com/##; s#/$##; s#\.git$##')
@@ -924,7 +994,8 @@ debup_check_updates() {
         release_json=$(fetch_github_api "repos/${repo_path}/releases/latest" 15)
         local latest_tag
         latest_tag=$(echo "$release_json" | jq -r '.tag_name // empty' 2>/dev/null | tr -d '\r')
-        local remote_ver="${latest_tag#v}"
+        local remote_ver
+        remote_ver=$(normalize_gh_tag "$latest_tag")
 
         if [ -n "$remote_ver" ] && [ -n "$local_ver" ]; then
             if ! dpkg --compare-versions "$local_ver" ge "$remote_ver" 2>/dev/null; then
@@ -1026,6 +1097,70 @@ debup_clean() {
     echo -e "${BLUE}---------------------------------------${NC}"
 }
 
+# ─────────────────────────────────────────────────────────────
+# FIX #1 + #6 — remove : purge sans injection + confirmation
+# ─────────────────────────────────────────────────────────────
+debup_remove() {
+    local PKG=""
+    local ASSUME_YES="false"
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -y|--yes) ASSUME_YES="true" ;;
+            -*) echo -e "${RED}${MSG_ERR_UNKNOWN_OPTION:-Option inconnue}: $1${NC}" >&2; return 1 ;;
+            *) PKG="$1" ;;
+        esac
+        shift
+    done
+
+    echo -e "${BLUE}---------------------------------------${NC}"
+    [ -z "$PKG" ] && { echo -e "${YELLOW}${MSG_USAGE_REMOVE}${NC}"; return 1; }
+
+    if [ "$DRY_RUN" = "true" ]; then
+        printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_REMOVE_TRACK" "${CYAN}${PKG}${YELLOW}" "${SOURCES_FILE}")"
+        printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_REMOVE_APT" "${PKG}")"
+        echo -e "${BLUE}---------------------------------------${NC}"
+        return 0
+    fi
+
+    if [ "$ASSUME_YES" != "true" ]; then
+        local confirm=""
+        prompt_read confirm "$(printf "${MSG_PROMPT_REMOVE_CONFIRM:-Purger '%s' et le retirer du suivi ? [o/N] : }" "${PKG}")\n" || confirm="n"
+        if [[ ! "$confirm" =~ ^[oOyY]$ ]]; then
+            echo -e "${BLUE}---------------------------------------${NC}"
+            echo -e "${RED}${MSG_OP_CANCELED}${NC}"
+            return 3
+        fi
+    fi
+
+    printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_PURGING" "${PKG}")"
+    if run_apt_styled purge -y "$PKG"; then
+        # FIX #1 — filtrage safe (Bash pur, pas de sed sur contenu utilisateur)
+        if [ -f "$SOURCES_FILE" ] && grep -qF "${PKG}|" "$SOURCES_FILE" 2>/dev/null; then
+            local tmp_sources pkg_prefix
+            tmp_sources=$(mktemp) || { echo -e "${RED}✖ mktemp failed${NC}" >&2; return 1; }
+            pkg_prefix="${PKG}|"
+            while IFS= read -r line || [ -n "$line" ]; do
+                case "$line" in
+                    "${pkg_prefix}"*) continue ;;
+                    *) printf '%s\n' "$line" >> "$tmp_sources" ;;
+                esac
+            done < "$SOURCES_FILE"
+            if $ELEVATE cp "$tmp_sources" "$SOURCES_FILE"; then
+                $ELEVATE chmod 644 "$SOURCES_FILE"
+                printf "${GREEN}%b${NC}\n" "$(printf "$MSG_REMOVE_TRACK_SUCCESS" "${PKG}")"
+            else
+                echo -e "${RED}✖ Impossible de mettre à jour $SOURCES_FILE${NC}" >&2
+            fi
+            rm -f "$tmp_sources"
+        fi
+        $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1 || true
+        printf "${GREEN}✔ %b${NC}\n" "$(printf "$MSG_APT_PURGE_SUCCESS" "${PKG}")"
+    else
+        printf "${RED}✖ %b${NC}\n" "$(printf "$MSG_APT_PURGE_FAIL" "${PKG}")"
+    fi
+}
+
 case "$1" in
     add|install|-a|-i)
         shift
@@ -1055,10 +1190,11 @@ case "$1" in
 
                 if run_apt_styled "${apt_args[@]}"; then
                     echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${GREEN}✔ %b${NC}\n\n" "$(printf "$MSG_APT_INSTALL_SUCCESS" "${TARGET}")"
+                    # FIX #3 — fallback inline si la locale ne définit pas la variable
+                    printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-Paquet APT '%s' installé.}" "${TARGET}")"
                 else
                     echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${RED}✖ %b${NC}\n\n" "$(printf "$MSG_APT_INSTALL_FAIL" "${TARGET}")"
+                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-Échec de l'installation du paquet APT '%s'.}" "${TARGET}")"
                 fi
             fi
         fi
@@ -1104,13 +1240,13 @@ case "$1" in
         while IFS='|' read -u 3 -r pkg repo || [ -n "$pkg" ]; do
             [[ "$pkg" =~ ^#.* ]] && continue
             [ -z "$pkg" ] && continue
-            ((total_count++))
+            total_count=$((total_count + 1))
 
             check_and_update "$repo" "$pkg" "$ASSUME_YES"
             status=$?
 
             if [ "$status" -eq 0 ]; then
-                ((updated_count++))
+                updated_count=$((updated_count + 1))
             fi
         done 3< "$SOURCES_FILE"
 
@@ -1147,28 +1283,9 @@ case "$1" in
         ;;
 
     remove|-r)
-        PKG="$2"
-        echo -e "${BLUE}---------------------------------------${NC}"
-        [ -z "$PKG" ] && { echo -e "${YELLOW}${MSG_USAGE_REMOVE}${NC}"; exit 1; }
-
-        if [ "$DRY_RUN" = "true" ]; then
-            printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_REMOVE_TRACK" "${CYAN}${PKG}${YELLOW}" "${SOURCES_FILE}")"
-            printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_REMOVE_APT" "${PKG}")"
-            echo -e "${BLUE}---------------------------------------${NC}"
-            exit 0
-        fi
-
-        printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_PURGING" "${PKG}")"
-        if run_apt_styled purge -y "$PKG"; then
-            if [ -f "$SOURCES_FILE" ] && grep -q "^${PKG}|" "$SOURCES_FILE" 2>/dev/null; then
-                $ELEVATE sed -i "/^${PKG}|/d" "$SOURCES_FILE"
-                printf "${GREEN}%b${NC}\n" "$(printf "$MSG_REMOVE_TRACK_SUCCESS" "${PKG}")"
-            fi
-            $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1 || true
-            printf "${GREEN}✔ %b${NC}\n" "$(printf "$MSG_APT_PURGE_SUCCESS" "${PKG}")"
-        else
-            printf "${RED}✖ %b${NC}\n" "$(printf "$MSG_APT_PURGE_FAIL" "${PKG}")"
-        fi
+        # FIX #1 + #6 — wrapper (local + confirmation)
+        shift
+        debup_remove "$@"
         ;;
 
     pin|-p)
@@ -1208,6 +1325,7 @@ case "$1" in
         ;;
 
     info|show|-f)
+        # FIX #4 — -i = install (déjà dans add|install), -f = info
         debup_info "$2"
         ;;
 
@@ -1240,7 +1358,7 @@ case "$1" in
         echo -e "${BOLD}${MSG_HELP_SEC_PKG}${NC}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-i, install, -a, add [-y] <repo>" "$MSG_HELP_ADD"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-u, upgrade [-y]"                 "$MSG_HELP_UPGRADE"
-        printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-r, remove <pkg>"                 "$MSG_HELP_REMOVE"
+        printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-r, remove <pkg> [-y]"            "$MSG_HELP_REMOVE"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n\n" "-p, pin | -n, unpin <pkg>"      "$MSG_HELP_PIN"
 
         echo -e "${BOLD}${MSG_HELP_SEC_DISCOVERY}${NC}"
@@ -1254,7 +1372,8 @@ case "$1" in
 
         echo -e "${BOLD}${MSG_HELP_SEC_OPTIONS}${NC}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-d, --dry-run"                    "$MSG_HELP_DRY"
-        printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-I, inspect, audit <repo>"        "${HELP_INSPECT_DESC}"
+        # FIX #2 — fallback inline (la variable peut ne pas exister dans une ancienne locale)
+        printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-I, inspect, audit <repo>"        "${MSG_HELP_INSPECT:-Inspect .deb scripts and file tree before install}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-c, clean"                        "${MSG_HELP_CLEAN:-Clean APT cache and leftover files}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-h, help"                         "$MSG_HELP_HELP"
         ;;
