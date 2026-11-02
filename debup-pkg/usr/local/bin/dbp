@@ -83,11 +83,6 @@ GRAY='\033[0;90m'
 MAGENTA='\033[0;35m'
 NC='\033[0m'
 
-# ─────────────────────────────────────────────────────────────
-# FIX #8 — lecture interactive safe (TTY / pipe / non-interactif)
-# Usage : prompt_read <varname> [prompt]
-# Retourne 1 si non-interactif (défaut = "n")
-# ─────────────────────────────────────────────────────────────
 prompt_read() {
     local _var="$1"
     local _prompt="${2:-}"
@@ -109,11 +104,6 @@ prompt_read() {
     return 0
 }
 
-# ─────────────────────────────────────────────────────────────
-# FIX #10 — normalisation des tags GitHub → version dpkg-comparable
-# "release-v1.2.3" → "1.2.3" | "app-v1.2.3-beta.1" → "1.2.3-beta.1"
-# "cli-v0.5.0-linux-amd64" → "0.5.0" | "1:1.2.3-1" → "1:1.2.3-1"
-# ─────────────────────────────────────────────────────────────
 normalize_gh_tag() {
     local tag="$1"
     local version=""
@@ -133,7 +123,7 @@ normalize_gh_tag() {
 
 show_banner() {
     echo -e "${BOLD}${RED}"
-    cat << "EOF"
+    cat << 'EOF'
            ********           
        ******    ******       
     ***** *****      *****    
@@ -284,7 +274,6 @@ set_github_token() {
     local token="$1"
 
     if [ -z "$token" ]; then
-        # FIX #8 — pas de /dev/tty en CI : message explicite
         if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
             echo -e "${RED}${MSG_ERR_NO_TTY:-Aucun terminal disponible ; passez le token en argument : dbp token <PAT>}${NC}" >&2
             return 1
@@ -506,7 +495,6 @@ check_and_update() {
         return 1
     fi
 
-    # FIX #10 — normalisation des tags
     local remote_ver
     remote_ver=$(normalize_gh_tag "$latest_tag")
 
@@ -715,7 +703,6 @@ debup_search() {
         return 1
     fi
 
-    # FIX #9 — encodage URL safe (jq @uri)
     local gh_query
     if command -v jq >/dev/null 2>&1; then
         gh_query=$(printf '%s in:name' "$query" | jq -sRr @uri)
@@ -818,7 +805,6 @@ debup_search() {
     prompt_read raw_input "${MSG_PROMPT_SELECT_NUM:-Enter n° of packages to install (e.g., 1 2 3 or 1-3) [default: cancel]: }" || raw_input=""
     [ -z "$raw_input" ] && { echo -e "${CYAN}${MSG_OP_CANCELED}${NC}"; return 0; }
 
-    # FIX #5 — word splitting / globbing safe
     local -a packagesnum=()
     read -ra packagesnum <<< "${raw_input//,/ }"
 
@@ -1097,9 +1083,6 @@ debup_clean() {
     echo -e "${BLUE}---------------------------------------${NC}"
 }
 
-# ─────────────────────────────────────────────────────────────
-# FIX #1 + #6 — remove : purge sans injection + confirmation
-# ─────────────────────────────────────────────────────────────
 debup_remove() {
     local PKG=""
     local ASSUME_YES="false"
@@ -1135,7 +1118,6 @@ debup_remove() {
 
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_PURGING" "${PKG}")"
     if run_apt_styled purge -y "$PKG"; then
-        # FIX #1 — filtrage safe (Bash pur, pas de sed sur contenu utilisateur)
         if [ -f "$SOURCES_FILE" ] && grep -qF "${PKG}|" "$SOURCES_FILE" 2>/dev/null; then
             local tmp_sources pkg_prefix
             tmp_sources=$(mktemp) || { echo -e "${RED}✖ mktemp failed${NC}" >&2; return 1; }
@@ -1190,11 +1172,10 @@ case "$1" in
 
                 if run_apt_styled "${apt_args[@]}"; then
                     echo -e "${BLUE}---------------------------------------${NC}"
-                    # FIX #3 — fallback inline si la locale ne définit pas la variable
-                    printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-Paquet APT '%s' installé.}" "${TARGET}")"
+                    printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-Paquet APT %s installé.}" "${TARGET}")"
                 else
                     echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-Échec de l'installation du paquet APT '%s'.}" "${TARGET}")"
+                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-Échec de l'installation du paquet APT %s.}" "${TARGET}")"
                 fi
             fi
         fi
@@ -1283,7 +1264,6 @@ case "$1" in
         ;;
 
     remove|-r)
-        # FIX #1 + #6 — wrapper (local + confirmation)
         shift
         debup_remove "$@"
         ;;
@@ -1325,7 +1305,6 @@ case "$1" in
         ;;
 
     info|show|-f)
-        # FIX #4 — -i = install (déjà dans add|install), -f = info
         debup_info "$2"
         ;;
 
@@ -1372,7 +1351,6 @@ case "$1" in
 
         echo -e "${BOLD}${MSG_HELP_SEC_OPTIONS}${NC}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-d, --dry-run"                    "$MSG_HELP_DRY"
-        # FIX #2 — fallback inline (la variable peut ne pas exister dans une ancienne locale)
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-I, inspect, audit <repo>"        "${MSG_HELP_INSPECT:-Inspect .deb scripts and file tree before install}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-c, clean"                        "${MSG_HELP_CLEAN:-Clean APT cache and leftover files}"
         printf "  ${CYAN}%-32s${NC} ${GRAY}%s${NC}\n" "-h, help"                         "$MSG_HELP_HELP"
