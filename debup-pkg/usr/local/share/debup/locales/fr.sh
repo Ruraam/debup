@@ -165,5 +165,5 @@ MSG_DRY_WOULD_INSTALL="Installerait :"
 
 MSG_MISSING_DEP_DETECTED=":: Dépendance manquante détectée : %s"
 MSG_WARN_GPG_KEY="⚠ Ce paquet installe une clé de dépôt GPG sur votre système."
-MSG_PROMPT_INSTALL_SIBLING="'%s' trouvé dans la release. Le télécharger et l'installer aussi ? [o/N] : "
+MSG_PROMPT_INSTALL_SIBLING="%s trouvé dans la release. Le télécharger et l'installer aussi ? [o/N] : "
 MSG_RETRY_WITH_DEPS="Nouvelle tentative d'installation avec les dépendances résolues..."
