@@ -145,12 +145,10 @@ verify_gpg_fingerprint() {
     fi
 }
 
-# ==========================================================
-# SHA-256 fail-closed
-# ==========================================================
 verify_sha256() {
     local deb_file="$1"
     local sha_url="${2:-}"
+    local original_name="${3:-}"
 
     if [[ -z "$sha_url" || "$sha_url" == "null" ]]; then
         echo -e "${RED}✖ No checksum asset provided in this release.${NC}" >&2
@@ -171,8 +169,12 @@ verify_sha256() {
 
     echo -e "${BLUE}[*] Verifying package integrity (SHA-256)...${NC}"
 
-    local deb_name expected actual
-    deb_name=$(basename "$deb_file")
+    local deb_name
+    if [ -n "$original_name" ]; then
+        deb_name="$original_name"
+    else
+        deb_name=$(basename "$deb_file")
+    fi
 
     local checksums
     checksums=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
@@ -183,6 +185,7 @@ verify_sha256() {
         exit 1
     fi
 
+    local expected actual
     expected=$(echo "$checksums" | grep -F "$deb_name" | awk '{print $1}' | head -n1 || true)
 
     if [[ -z "$expected" ]] && [[ "$(echo "$checksums" | wc -w)" -eq 1 ]]; then
@@ -432,8 +435,19 @@ case "$choice" in
         ' | head -n1)
 
         if [ -z "$DEB_URL" ]; then
-            DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
-            echo -e "${YELLOW}[!] No .deb matching architecture '$ARCH'. Falling back to first .deb.${NC}" >&2
+            DEB_URL=$(echo "$RELEASE_JSON" | jq -r '
+                .assets[]
+                | select(.name | endswith(".deb"))
+                | select(.name | test("(^|[-_])all([-_.]|$)"; "i"))
+                | .browser_download_url
+            ' | head -n1)
+
+            if [ -n "$DEB_URL" ]; then
+                echo -e "${GRAY}[i] Using architecture-independent package (all).${NC}" >&2
+            else
+                DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
+                echo -e "${YELLOW}[!] No .deb matching architecture '$ARCH'. Falling back to first .deb.${NC}" >&2
+            fi
         fi
 
         if [ -z "$DEB_URL" ]; then
@@ -441,7 +455,9 @@ case "$choice" in
             exit 1
         fi
 
-        DEB_FILE="${TEMP_DIR}/debup_latest.deb"
+        DEB_NAME=$(basename "$DEB_URL")
+        DEB_FILE="${TEMP_DIR}/${DEB_NAME}"
+
         echo -e "${BLUE}[*] Downloading package:${NC} ${GRAY}${DEB_URL}${NC}"
         if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 \
                 --progress-bar -o "$DEB_FILE" "$DEB_URL"; then
@@ -459,7 +475,6 @@ case "$choice" in
             echo -e "${YELLOW}[!] 'dpkg-deb' not found. Skipping post-download architecture check.${NC}" >&2
         fi
 
-        DEB_NAME=$(basename "$DEB_URL")
         SHA_URL=$(find_checksum_url "$RELEASE_JSON" "$DEB_NAME" || true)
 
         if [ -z "$SHA_URL" ]; then
@@ -467,7 +482,7 @@ case "$choice" in
             exit 1
         fi
 
-        verify_sha256 "$DEB_FILE" "$SHA_URL"
+        verify_sha256 "$DEB_FILE" "$SHA_URL" "$DEB_NAME"
 
         echo -e "${BLUE}[*] Installing package using APT...${NC}"
         $SUDO apt-get update -qq || true
