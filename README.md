@@ -36,7 +36,8 @@ Easy installation with <a href="https://github.com/Ruraam/debup#-installation">i
 
 <div align="center">
 
-| [Usage](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-usage) | [GitHub Token](https://github.com/Ruraam/debup/blob/main/README.md#-configure-a-github-token-optionnal--dbp-token-) | [Search & Install](https://github.com/Ruraam/debup/tree/main#-discover-search--install-packages--dbp-search) | [Uninstallation](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-uninstallation) |
+<!-- CORRIGÉ #2 : "optionnal" → "optional" -->
+| [Usage](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-usage) | [GitHub Token](https://github.com/Ruraam/debup/blob/main/README.md#-configure-a-github-token-optional--dbp-token-) | [Search & Install](https://github.com/Ruraam/debup/tree/main#-discover-search--install-packages--dbp-search) | [Uninstallation](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-uninstallation) |
 | :---: | :---: | :---: | :---: |
 | [Configuration](https://github.com/Ruraam/debup/blob/main/README.md#%EF%B8%8F-configuration) | [Screenshots](https://github.com/Ruraam/debup/tree/main#screenshots) | [Changelog](https://github.com/Ruraam/debup/releases) | [License](LICENSE) |
 </div>
@@ -167,7 +168,11 @@ dbp token <ghtoken>
 ```
 `debup` will automatically detect and use it, boosting your limit to 5,000 requests per hour.
 
-> ***🔒 Security Note:** Your token is securely stored in `/etc/debup/debup.conf` with restricted permissions (`chmod 600`), ensuring only root can read it.*
+<!-- CORRIGÉ #1 : localisation réelle du token (user-level d'abord, root-level en duplication) -->
+> ***🔒 Security Note:***
+> - **User-level storage (default):** the token is written to `${XDG_CONFIG_HOME:-$HOME/.config}/debup/token` with `chmod 600`. No elevation required — `debup` works fully as a regular user.
+> - **Root-level storage (optional):** if `debup` is invoked as root, the token is also duplicated to `/etc/debup/debup.conf` with `chmod 600`, for system-wide availability.
+> - In both cases, only the owning user (or root) can read the file.
 
 ---
 
@@ -212,6 +217,55 @@ dbp -u [-y]
 sudo apt update && sudo apt upgrade debup
 ```
 
+<!-- CORRIGÉ #1 (suite) : comportement par défaut de `dbp` sans argument -->
+### 🔄 Quick Update Check (default action)
+
+Running `dbp` with **no argument** triggers a fast, non-destructive update check across both APT repositories and tracked GitHub packages:
+
+```bash
+dbp
+```
+
+This behaves exactly like `dbp update` (or `dbp -v`) and prints a unified summary:
+
+- Number of upgradable APT packages
+- Number of tracked GitHub packages with a newer release
+- A hint to run `dbp upgrade` to apply changes
+
+No prompts, no installation — a one-glance status check. Perfect for cron, MOTD hooks, or a quick sanity check before `dbp -u`.
+
+<!-- CORRIGÉ #3 : section Audit / Dry-run / Cleanup ajoutée -->
+### 🛡️ Audit & Inspection
+
+Inspect maintainer scripts (`preinst`, `postinst`, `prerm`, `postrm`) and package contents **before** installation:
+
+```bash
+dbp -I <owner>/<repo>
+```
+
+Useful to verify what a `.deb` will do to your system before trusting it.
+
+### 🧪 Dry-Run Simulation
+
+Preview any action without modifying your system:
+
+```bash
+dbp -u -d
+dbp -i <owner>/<repo> --dry-run
+```
+
+Supported on every destructive command: `install`, `upgrade`, `remove`, `pin`, `unpin`, `clean`.
+
+### 🧹 System Cleanup
+
+Purge APT caches and stale GitHub API response caches:
+
+```bash
+dbp -c
+```
+
+Frees disk space and eliminates redundant network requests for the next operations.
+
 ### 🔍 Discover, Search & Install Packages [ `dbp search`] 
 
 Find & discover any GitHub project providing .deb packages compatible with your architecture and install it in one click:
@@ -235,7 +289,7 @@ Enter the package number from the list and press Enter. debup downloads the matc
 ---
 
 ## Short CLI flag aliases: Standard single-letter POSIX flags for streamlined terminal workflows:
-[-a : add / install] [-u : update / upgrade] [-r : remove] [-p : pin] [-n : unpin] [-s : search] [-f : info / show] [-l : list] [-t : token / auth]
+[-a : add / install] [-u : update / upgrade] [-r : remove] [-p : pin] [-n : unpin] [-s : search] [-f : info / show] [-I : inspect / audit] [-l : list] [-t : token / auth] [-S : stats] [-c : clean] [-d : dry-run]
 
 ---
 
@@ -245,7 +299,9 @@ Enter the package number from the list and press Enter. debup downloads the matc
 
 **Format:** `<package-name>|<github-user>/<github-repo>`
 
-**GitHub Token is stored in:** `/etc/debup/debup.conf`
+**GitHub Token is stored in:**
+- `${XDG_CONFIG_HOME:-$HOME/.config}/debup/token` (user-level, default)
+- `/etc/debup/debup.conf` (root-level, when `debup` is run as root)
 
 ---
 
@@ -283,9 +339,6 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 *[Universal Ruvomain ADB App Manager [URAAM]:](https://github.com/Ruraam/Uraam) 50⭐ - An all-in-one shell toolkit for `Android debloating`. Uninstall/disable your apps, backup your debloat apps JSON file & revert/restore, install apk. Works with `Termux WirelessADB, Shizuku, Root`, `Linux Debian, Arch, Fedora, macOS & WSL`. Compatible with Canta/UAD JSON lists.*
 
-Made with : 🐧 Debian, ☕ coffee, and an unreasonable amount of bash -n
+---
 
-
-
-
-
+*Made with 🐧 Debian, ☕ coffee, and an unreasonable amount of `bash -n`.*
