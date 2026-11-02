@@ -2,7 +2,7 @@
  
 <img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
 <h1>debup</h1>
-<p><strong>debup - Hybrid Package Manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions,Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
+<p><strong>debup - Hybrid Package Manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions, Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
 <p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from APT & GitHub Releases <strong>simultaneously</strong>.</p>
 <p><em>No PPAs, no bloated sandboxes, no third-party repositories — just native <code>.deb</code> binaries fetched straight from upstream.
 Easy installation with <a href="https://github.com/Ruraam/debup#-installation">interactive/non-interactive Debup Installer</a>.</em></p>
@@ -14,7 +14,7 @@ Easy installation with <a href="https://github.com/Ruraam/debup#-installation">i
 <div align="center">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="GPL v3"></a> &nbsp;
 <a href="https://debian.org"><img src="https://img.shields.io/badge/Platform-Debian%20%7C%20Ubuntu-red.svg" alt="Platform"></a> &nbsp;
-<ahref="#"><img src="https://img.shields.io/badge/Arch-all%20(any)-orange.svg" alt="Arch"></a> &nbsp;
+<a href="#"><img src="https://img.shields.io/badge/Arch-all%20(any)-orange.svg" alt="Arch"></a> &nbsp;
 <a href="https://www.gnu.org/software/bash/"><img src="https://img.shields.io/badge/Language-Bash-4EAA25.svg" alt="Bash"></a>
 </div>
 
@@ -46,7 +46,7 @@ Easy installation with <a href="https://github.com/Ruraam/debup#-installation">i
 
 ---
 
-## <img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=30&height=30)"> debup [ `dbp` ] - The Missing Bridge Between GitHub & APT
+## <img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=30&height=30"> debup [ `dbp` ] - The Missing Bridge Between GitHub & APT
 
 Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases into your personal rolling third-party repository.
 **Discover, inspect, install, and update Debian packages directly from GitHub Releases with the simplicity of `apt`.**
@@ -55,77 +55,75 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 
 ### 🔍 Unified Discovery & Multi-Install [dbp -s <query>] :
 
-•Search Debian APT repositories and GitHub Releases concurrently in a single terminal query, pre-filtered for compatible binary packages.
+• Search Debian APT repositories and GitHub Releases concurrently in a single terminal query, pre-filtered for compatible binary packages.
 
-•Interactive multi-selection prompt supporting ranges and comma-separated lists (e.g., 1 2 3, 1-3, 1,2,4) for rapid batch installations.
+• Interactive multi-selection prompt supporting ranges and comma-separated lists (e.g., 1 2 3, 1-3, 1,2,4) for rapid batch installations.
 
 #### 📦 Direct Installation [dbp -i <owner/repo> / dbp -i <pkg>]:
 
-•No need to hunt down release URLs. Point to any repository, and debup detects, matches your architecture (amd64 / arm64), downloads, and installs the right .deb.
+• No need to hunt down release URLs. Point to any repository, and debup detects, matches your architecture (amd64 / arm64), downloads, and installs the right .deb.
 
-•Works transparently with native APT packages as well (dbp -i bat).
+• Works transparently with native APT packages as well (dbp -i bat).
 
-•Supports version pins on installation: dbp -i owner/repo@vX.Y.Z.
+• Supports version pins on installation: dbp -i owner/repo@vX.Y.Z.
 
-•Supports non-interactive automated installs via -y / --yes.
+• Supports non-interactive automated installs via -y / --yes.
 
 #### ℹ️ Metadata Preview [dbp -f <owner/repo>]:
 
-•Preview remote package metadata before touching your system (stars count, SPDX license, description, release tag, publish date, and architecture asset compatibility).
+• Preview remote package metadata before touching your system (stars count, SPDX license, description, release tag, publish date, and architecture asset compatibility).
 
 #### 🛡️ Security Audit & Root Script Inspection [dbp -I <owner/repo>]:
 
-•Inspect internal maintainer scripts (preinst, postinst, prerm,postrm) and the raw file tree contained inside any remote .deb before execution.
+• Inspect internal maintainer scripts (preinst, postinst, prerm, postrm) and the raw file tree contained inside any remote .deb before execution.
 
-•Automatic interactive prompt alerting you whenever a downloaded package contains root maintenance scripts prior to installation.
+• Automatic interactive prompt alerting you whenever a downloaded package contains root maintenance scripts prior to installation.
 
 #### 🔒 Automated Integrity Verification:
 
-•Automatically detects and validates published checksum files (SHA256SUMS, checksums.txt, *.sha256) against downloaded binaries before invoking dpkg.
+• Automatically detects and validates published checksum files (SHA256SUMS, checksums.txt, *.sha256) against downloaded binaries before invoking dpkg.
 
 #### 🔄 Native APT Lifecycle & Unified Upgrades [dbp -u]:
 
-•Seamlessly syncs APT repositories and updates both native Debian packages and tracked GitHub applications in a single unified workflow.
+• Seamlessly syncs APT repositories and updates both native Debian packages and tracked GitHub applications in a single unified workflow.
 
-•Clean package tracking removal [dbp -r <pkg>] with automated APT purge execution.
+• Clean package tracking removal [dbp -r <pkg>] with automated APT purge execution.
 
 #### 📊 Telemetry & System Dashboard [dbp -S]:
 
-•Real-time overview of native installed packages, tracked GitHub packages, locked packages, API cache footprint, and remaining GitHub API rate-limit quota with reset time.
+• Real-time overview of native installed packages, tracked GitHub packages, locked packages, API cache footprint, and remaining GitHub API rate-limit quota with reset time.
 
 #### 🧹 Maintenance & Cache Cleanup [dbp -c]:
 
-•Cleans leftover installation deb archives in /tmp, purges APT's download cache, and resets stale local GitHub API response caches
+• Cleans leftover installation deb archives in /tmp, purges APT's download cache, and resets stale local GitHub API response caches.
 
 #### 🧪 Dry-Run Simulation Mode [-d / --dry-run]:
 
-•Simulate downloads, upgrades, repository operations, pins, and unpins across any command without making any actual changes to the file system or APT state.
+• Simulate downloads, upgrades, repository operations, pins, and unpins across any command without making any actual changes to the file system or APT state.
 
-#### ⚡High-Rate API Tracking & Caching [dbp -t]:
+#### ⚡ High-Rate API Tracking & Caching [dbp -t]:
 
-•Local API response cache to eliminate redundant requests and optimize bandwidth.
+• Local API response cache to eliminate redundant requests and optimize bandwidth.
 
-•Securely store a personal GitHub token (chmod 600) to unlock 5,000 req/h for heavy searches and automated background update checks.
+• Securely store a personal GitHub token (chmod 600) to unlock 5,000 req/h for heavy searches and automated background update checks.
 
 #### 💻 Native Bash completion:
 
-•Autocompletion support for both debup and the dbp alias, featuring context-aware dynamic package suggestions for remove, pin, andunpin.
+• Autocompletion support for both debup and the dbp alias, featuring context-aware dynamic package suggestions for remove, pin, and unpin.
 
 #### 🛡️ Package Pinning (apt-mark hold):
 
-•Freeze package updates :
+• Freeze package updates: Lock specific packages to their current version using the pin [dbp -p <pkg>] command to prevent unwanted updates.
 
-Lock specific packages to their current version using the pin [dbp -p <pkg>] command to prevent unwanted updates.
+• Unfreeze updates: Restore automatic updates anytime with unpin [dbp -n <pkg>].
 
-•Unfreeze updates : Restore automatic updates anytime with unpin [dbp -n <pkg>].
-
-•Native APT integration : Relies directly on Debian's standard apt-mark mechanism under the hood, ensuring 100% consistency with native system tools.
+• Native APT integration: Relies directly on Debian's standard apt-mark mechanism under the hood, ensuring 100% consistency with native system tools.
 
 ### 🎯 Smart Asset Detection
 
 `debup` automatically picks the right `.deb` binary from GitHub Releases without guesswork:
 
-***Flexible Architectures:** Matches standard & alias names:
+**Flexible Architectures:** Matches standard & alias names:
 * **x86_64:** `amd64`, `x86_64`, `x86-64`, `x64`, `all`
 * **ARM64:** `arm64`, `aarch64`, `armv8`, `arm64v8`, `all`
 * **Cross-Architecture Protection:** Actively filters out conflicting assets (e.g., prevents downloading `arm64` on `amd64` machines).
@@ -137,7 +135,7 @@ Lock specific packages to their current version using the pin [dbp -p <pkg>] com
 ## 📦 Installation
 
 ### ⚡ Quick Interactive/Non-Interactive Setup
-**Zero-Trust Installer:** Features automated fail-closed GPG fingerprint validation, SHA-256 integrity verification, and full support for both interactive prompts and headlessn on-interactive deployments (`-y` / CI/CD).
+**Zero-Trust Installer:** Features automated fail-closed GPG fingerprint validation, SHA-256 integrity verification, and full support for both interactive prompts and headless non-interactive deployments (`-y` / CI/CD).
 
 Run the interactive installer wizard to choose your preferred setup method (APT Repository, Latest Release, or Build from source):
 ```bash
@@ -160,16 +158,16 @@ curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bas
 
 By default, GitHub limits anonymous requests to 60 requests/hour. Adding a token increases this limit to 5000 requests/hour.
 
-**1.Generate a token:**
+**1. Generate a token:**
 Go to GitHub > Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token (no scopes/permissions needed, leave everything unchecked).
 
-**2.Link it to debup:**
+**2. Link it to debup:**
 ```bash
 dbp token <ghtoken>
 ```
 `debup` will automatically detect and use it, boosting your limit to 5,000 requests per hour.
 
-> ***🔒 Security Note:** Your token is securely stored in `/etc/debup/debup.conf` with restricted permissions (`chmod600`), ensuring only root can read it.*
+> ***🔒 Security Note:** Your token is securely stored in `/etc/debup/debup.conf` with restricted permissions (`chmod 600`), ensuring only root can read it.*
 
 ---
 
@@ -180,7 +178,7 @@ dbp token <ghtoken>
 ```bash
 dbp -a <owner>/<repo>
 ```
-for exemple:
+for example:
 ```bash
 dbp -a Ruraam/Uraam
 ```
@@ -194,7 +192,7 @@ dbp -l
 dbp -r <package-name>
 ```
 
-Prevent an app from updating**
+**Prevent an app from updating**
 ```bash
 dbp -p <package-name>
 ```
@@ -217,11 +215,11 @@ sudo apt update && sudo apt upgrade debup
 ### 🔍 Discover, Search & Install Packages [ `dbp search`] 
 
 Find & discover any GitHub project providing .deb packages compatible with your architecture and install it in one click:
-Search informations on a repository:
+Preview repository information:
 ```bash
-dbp -i <owner>/<repo>
+dbp -f <owner>/<repo>
 ```
-##### Example: dbp -i Ruraam/Uraam
+##### Example: dbp -f Ruraam/Uraam
 
 ```bash
 dbp -s <keyword>
@@ -237,7 +235,7 @@ Enter the package number from the list and press Enter. debup downloads the matc
 ---
 
 ## Short CLI flag aliases: Standard single-letter POSIX flags for streamlined terminal workflows:
-[-a : add / install] [-u : update / upgrade] [-r : remove] [-p : pin] [-n : unpin] [-s : search] [-i : info / show] [-l :list] [-t : token / auth]
+[-a : add / install] [-u : update / upgrade] [-r : remove] [-p : pin] [-n : unpin] [-s : search] [-f : info / show] [-l : list] [-t : token / auth]
 
 ---
 
@@ -247,12 +245,12 @@ Enter the package number from the list and press Enter. debup downloads the matc
 
 **Format:** `<package-name>|<github-user>/<github-repo>`
 
-**Github Token is stored in:** `/etc/debup/debup.conf`
+**GitHub Token is stored in:** `/etc/debup/debup.conf`
 
 ---
 
 ## 🗑️ Uninstallation
-**Remove package sudo**
+**Remove package (sudo)**
 ```bash
 dbp -r debup [-y]
 ```
@@ -284,3 +282,10 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 *[Universal Linux Package Manager [ULPM]:](https://github.com/Ruraam/ulpm) 3⭐ - Lightweight, rootless, zero-daemon, sandboxed `application/read-only OS runtime` for any Linux distribution. Lighter than Flatpak or Snap.*
 
 *[Universal Ruvomain ADB App Manager [URAAM]:](https://github.com/Ruraam/Uraam) 50⭐ - An all-in-one shell toolkit for `Android debloating`. Uninstall/disable your apps, backup your debloat apps JSON file & revert/restore, install apk. Works with `Termux WirelessADB, Shizuku, Root`, `Linux Debian, Arch, Fedora, macOS & WSL`. Compatible with Canta/UAD JSON lists.*
+
+Made with : 🐧 Debian, ☕ coffee, and an unreasonable amount of bash -n
+
+
+
+
+
