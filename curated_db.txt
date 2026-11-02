@@ -176,6 +176,7 @@ onlyoffice-desktopeditors|github|ONLYOFFICE/DesktopEditors
 openaudible|github|openaudible/openaudible
 openboardview|github|OpenBoardView/OpenBoardView
 opencode|github|anomalyco/opencode
+opentabletdriver|github|OpenTabletDriver/OpenTabletDriver
 os-agent|github|home-assistant/os-agent
 ov|github|noborus/ov
 p3x-onenote|github|patrikx3/onenote
@@ -184,6 +185,7 @@ paseo|github|getpaseo/paseo
 pdfsam-basic|github|torakiki/pdfsam
 pdfsam-visual|github|torakiki/pdfsam-visual-public
 peazip|github|peazip/PeaZip
+per-mark|github|EdelmarSchneider/permark
 pet|github|knqyf263/pet
 picocrypt-ng|github|Picocrypt-NG/Picocrypt-NG
 pixieditor|github|PixiEditor/PixiEditor
@@ -249,6 +251,8 @@ trivy|github|aquasecurity/trivy
 tura-gui|github|Tura-AI/tura
 tux-manager|github|benapetr/TuxManager
 ulauncher|github|Ulauncher/Ulauncher
+veracrypt-console|github|veracrypt/VeraCrypt
+veracrypt|github|veracrypt/VeraCrypt
 vesktop|github|Vencord/Vesktop
 vfox|github|version-fox/vfox
 voxtype|github|peteonrails/voxtype
@@ -257,6 +261,7 @@ wealthfolio|github|afadil/wealthfolio
 weylus|github|H-M-H/Weylus
 whalebird|github|h3poteto/whalebird-desktop
 winegui|github|winegui/WineGUI
+xdm-app|github|subhra74/xdm
 xpipe|github|xpipe-io/xpipe
 yazi|github|sxyazi/yazi
 youtube-music|github|th-ch/youtube-music
