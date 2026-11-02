@@ -1175,7 +1175,7 @@ case "$1" in
                     printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-Paquet APT %s installé.}" "${TARGET}")"
                 else
                     echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-Échec de l'installation du paquet APT %s.}" "${TARGET}")"
+                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
                 fi
             fi
         fi
