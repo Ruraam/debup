@@ -133,7 +133,7 @@ normalize_gh_tag() {
 
 show_banner() {
     echo -e "${BOLD}${RED}"
-    cat << 'EOF'
+    cat << "EOF"
            ********           
        ******    ******       
     ***** *****      *****    
