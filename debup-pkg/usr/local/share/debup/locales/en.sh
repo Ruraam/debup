@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash''
 # English
 
 MSG_ERR_NO_ELEVATE="No privilege elevation tool found (sudo/doas)."
@@ -15,13 +15,13 @@ MSG_ERR_CHECKSUM_FAILED="Checksum verification failed!"
 MSG_ERR_INSTALL_FAILED="Installation failed."
 MSG_ERR_INSPECT_DL="Failed to download package for inspection."
 MSG_ERR_NO_DEB_IN_RELEASE="No .deb file found in the latest release."
-MSG_ERR_REPO_NOT_FOUND="Repository '%s' not found."
+MSG_ERR_REPO_NOT_FOUND="Repository %s not found."
 MSG_ERR_NO_DEB_IN_REL="No .deb assets found in the latest release."
 MSG_ERR_UNKNOWN_CMD="Unknown command: %s"
 MSG_ERR_UNKNOWN_OPTION="Unknown option"
 MSG_ERR_NO_TTY="No terminal available; pass the token as argument: dbp token <PAT>"
 
-MSG_NO_TTY="Non-interactive mode: defaulting to 'n'."
+MSG_NO_TTY="Non-interactive mode: defaulting to n."
 
 MSG_ENTER_PAT="Enter your GitHub Personal Access Token: "
 MSG_TOKEN_SUCCESS="GitHub token saved successfully."
@@ -56,7 +56,7 @@ MSG_INSPECT_NO_SCRIPTS="No maintainer scripts found."
 MSG_INSPECT_FILES="Package contents"
 
 MSG_USAGE_SEARCH="Usage: debup search <query>"
-MSG_SEARCHING_GH="Searching for '%s'..."
+MSG_SEARCHING_GH="Searching for %s..."
 MSG_SEARCH_NO_APT="No results in APT."
 MSG_VERIFYING_DEBS="Checking for .deb releases..."
 MSG_NO_DESC="No description"
@@ -92,7 +92,7 @@ MSG_UPDATE_APT_AVAIL_HINT="%s APT package(s) can be upgraded."
 MSG_UPDATE_GH_AVAIL_HEADER="GitHub updates available:"
 MSG_UPDATE_ALL_GH_UPTODATE="All GitHub packages are up to date."
 MSG_UPDATE_SUMMARY_TOTAL="Summary: %s APT + %s GitHub update(s) available"
-MSG_UPDATE_APPLY_HINT="Run 'debup upgrade' to apply."
+MSG_UPDATE_APPLY_HINT="Run debup upgrade to apply."
 MSG_UPDATE_SYSTEM_UPTODATE="System is up to date."
 
 MSG_STATS_TITLE="Debup & System Statistics"
@@ -126,7 +126,7 @@ MSG_STATUS_ACTIVE="active"
 MSG_STATUS_PINNED="pinned"
 
 MSG_USAGE_REMOVE="Usage: debup remove <package> [-y]"
-MSG_PROMPT_REMOVE_CONFIRM="Purge '%s' and remove it from tracking? [y/N]: "
+MSG_PROMPT_REMOVE_CONFIRM="Purge %s and remove it from tracking? [y/N]: "
 MSG_DRY_REMOVE_TRACK="[Dry-run] Would remove tracking of %s from %s"
 MSG_DRY_REMOVE_APT="[Dry-run] Would purge APT package: %s"
 MSG_REMOVE_TRACK_SUCCESS="Stopped tracking %s"
@@ -158,12 +158,12 @@ MSG_HELP_DRY="Simulate actions without making changes"
 MSG_HELP_INSPECT="Inspect maintainer scripts and files of a package"
 MSG_HELP_CLEAN="Clean APT cache and leftover files"
 MSG_HELP_HELP="Show this help"
-MSG_RUN_HELP_HINT="Run '%s help' for more information."
+MSG_RUN_HELP_HINT="Run %s help for more information."
 
 MSG_DRY_WOULD_DOWNLOAD="Would download:"
 MSG_DRY_WOULD_INSTALL="Would install:"
 
 MSG_MISSING_DEP_DETECTED=":: Missing dependency detected: %s"
 MSG_WARN_GPG_KEY="⚠ This package installs a GPG repository key on your system."
-MSG_PROMPT_INSTALL_SIBLING="Found '%s' in release. Download and install it as well? [y/N]: "
+MSG_PROMPT_INSTALL_SIBLING="Found %s in release. Download and install it as well? [y/N]: "
 MSG_RETRY_WITH_DEPS="Retrying installation with resolved dependencies..."
