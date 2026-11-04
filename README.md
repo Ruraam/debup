@@ -46,7 +46,7 @@ Easy installation with <a href="https://github.com/Ruraam/debup#-installation">i
 
 ---
 
-## <img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=30&height=30"> debup [ `dbp` ] - The Missing Bridge Between GitHub & APT
+## <img src="https://raw.githubusercontent.com/Ruraam/debup/6c95ca64c20dff710e76a4cd3e85943b1ed4c8b2/assets/debup-icon.svg" width="30"/> **debup** [ `dbp` ] - The Missing Bridge Between GitHub & APT
 
 Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases into your personal rolling third-party repository.
 **Discover, inspect, install, and update Debian packages directly from GitHub Releases with the simplicity of `apt`.**
