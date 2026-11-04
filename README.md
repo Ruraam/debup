@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://raw.githubusercontent.com/Ruraam/debup/e5c85dc1aa3e0bf0fbb897c728f8c04c4e8fa154/assets/debup-logo.svg"/>
+<img src="https://raw.githubusercontent.com/Ruraam/debup/b22218d9dc4c097a43a54ab1f28966ae37f7b68a/assets/debup-logo.svg"/>
 
 <p><strong>debup - Hybrid Package Manager: The missing bridge between GitHub & APT for Debian/Ubuntu-based distributions, Raspberry Pi, Docker, WSL & Android Linux Terminal (AVF).</strong></p>
 <p>Search, discover, track, install, and upgrade <code>.deb</code> packages directly from APT & GitHub Releases <strong>simultaneously</strong>.</p>
