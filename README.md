@@ -336,11 +336,11 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## 🛠️ Related Projects
 
-* [**BubbleOS**](https://github.com/Ruraam/Bubbleos) [![Stars](https://img.shields.io/github/stars/Ruraam/Bubbleos?style=flat-square&logo=github&color=yellow)](https://github.com/Ruraam/Bubbleos/stargazers) — BubbleOS is an experimental Linux operatingsystem built around the Linux kernel and the ULPM/LPK ecosystem.
+* [**BubbleOS**](https://github.com/Ruraam/Bubbleos) <img src="https://raw.githubusercontent.com/Ruraam/Bubbleos/5a6cc5b1f9812674dcfc11f04e8ee0af17e24ed6/assets/bubbleos-logo.svg" width="30"/> [![Stars](https://img.shields.io/github/stars/Ruraam/Bubbleos?style=flat-square&logo=github&color=yellow)](https://github.com/Ruraam/Bubbleos/stargazers) — BubbleOS is an experimental Linux operatingsystem built around the Linux kernel and the ULPM/LPK ecosystem.
 
-* [**Universal Linux Package Manager [ULPM]**](https://github.com/Ruraam/ulpm) [![Stars](https://img.shields.io/github/stars/Ruraam/ulpm?style=flat-square&logo=github&color=yellow)](https://github.com/Ruraam/ulpm/stargazers) —Lightweight, rootless, zero-daemon, sandboxed `application/read-only OS runtime` for any Linux distribution. Lighter thanFlatpak or Snap.
+*  [**Universal Linux Package Manager [ULPM]**](https://github.com/Ruraam/ulpm) <img src="https://raw.githubusercontent.com/Ruraam/ulpm/703cc478f9f814ef7b4ec0830230b2e7830d6460/assets/ulpm-logo4.svg" width="30"/> [![Stars](https://img.shields.io/github/stars/Ruraam/ulpm?style=flat-square&logo=github&color=yellow)](https://github.com/Ruraam/ulpm/stargazers) —Lightweight, rootless, zero-daemon, sandboxed `application/read-only OS runtime` for any Linux distribution. Lighter thanFlatpak or Snap.
 
-* [**Universal Ruvomain ADB App Manager [URAAM]**](https://github.com/Ruraam/Uraam) [![Stars](https://img.shields.io/github/stars/Ruraam/Uraam?style=flat-square&logo=github&color=yellow)](https://github.com/Ruraam/Uraam/stargazers) — An all-in-one shell toolkit for `Android debloating`. Uninstall/disable your apps, backup your debloat apps JSON file& revert/restore, install apk. Works with `Termux WirelessADB, Shizuku, Root`, `LinuxDebian, Arch, Fedora, macOS & WSL`. Compatible with Canta/UAD JSON lists.
+* [**Universal Ruvomain ADB App Manager [URAAM]**](https://github.com/Ruraam/Uraam) <img src="https://raw.githubusercontent.com/Ruraam/Uraam/8661b39541a259689e88eedc71ad98837ce4b3c4/assets/uraam_logo.svg" width="30"/> [![Stars](https://img.shields.io/github/stars/Ruraam/Uraam?style=flat-square&logo=github&color=yellow)](https://github.com/Ruraam/Uraam/stargazers) — An all-in-one shell toolkit for `Android debloating`. Uninstall/disable your apps, backup your debloat apps JSON file& revert/restore, install apk. Works with `Termux WirelessADB, Shizuku, Root`, `LinuxDebian, Arch, Fedora, macOS & WSL`. Compatible with Canta/UAD JSON lists.
 
 ---
 
