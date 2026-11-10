@@ -179,16 +179,43 @@ if [ ! -d "$CONF_DIR" ]; then
 fi
 
 if [ ! -f "$SOURCES_FILE" ]; then
-    if ! touch "$SOURCES_FILE" 2>/dev/null; then
-        $ELEVATE touch "$SOURCES_FILE" || {
-            printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_CREATE_FILE" "$SOURCES_FILE")" >&2
-            exit 1
-        }
+    if ! $ELEVATE install -D -m 0644 /dev/null "$SOURCES_FILE"; then
+        printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_CREATE_FILE" "$SOURCES_FILE")" >&2
+        exit 1
     fi
-    $ELEVATE chmod 644 "$SOURCES_FILE" 2>/dev/null || chmod 644 "$SOURCES_FILE"
 fi
 
-ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
+atomic_replace_sources() {
+    local content_file="$1"
+    local destination_tmp
+
+    if [ ! -f "$content_file" ]; then
+        echo -e "${RED}✖ Source-list staging file is missing.${NC}" >&2
+        return 1
+    fi
+
+    destination_tmp=$($ELEVATE mktemp "${CONF_DIR}/.sources.list.XXXXXX") || {
+        echo -e "${RED}✖ Failed to create a temporary source-list file.${NC}" >&2
+        return 1
+    }
+
+    if ! $ELEVATE install -m 0644 "$content_file" "$destination_tmp"; then
+        $ELEVATE rm -f -- "$destination_tmp" >/dev/null 2>&1 || true
+        echo -e "${RED}✖ Failed to stage the updated source list.${NC}" >&2
+        return 1
+    fi
+
+    if ! $ELEVATE mv -f -- "$destination_tmp" "$SOURCES_FILE"; then
+        $ELEVATE rm -f -- "$destination_tmp" >/dev/null 2>&1 || true
+        echo -e "${RED}✖ Failed to atomically replace $SOURCES_FILE.${NC}" >&2
+        return 1
+    fi
+}
+
+if ! ARCH=$(dpkg --print-architecture 2>/dev/null) || [ -z "$ARCH" ]; then
+    echo -e "${RED}✖ Unable to determine the system architecture with dpkg.${NC}" >&2
+    exit 1
+fi
 
 get_arch_regex() {
     case "$ARCH" in
@@ -674,17 +701,29 @@ check_and_update() {
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${GREEN}%b${NC}\n\n" "$(printf "$MSG_SUCCESS_INSTALLED" "${PKG_NAME}" "${latest_tag}")"
 
-        if [ -n "$PKG_NAME" ] && ! grep -qF "${PKG_NAME}|" "$SOURCES_FILE" 2>/dev/null; then
+        if [ -n "$PKG_NAME" ] && ! awk -F'|' -v package="$PKG_NAME" '$1 == package { found = 1 } END { exit !found }' "$SOURCES_FILE"; then
             local tmp_sources
-            tmp_sources=$(mktemp)
-            cat "$SOURCES_FILE" > "$tmp_sources" 2>/dev/null || true
-            echo "${PKG_NAME}|${REPO_URL}" >> "$tmp_sources"
-            if $ELEVATE cp "$tmp_sources" "$SOURCES_FILE"; then
-                $ELEVATE chmod 644 "$SOURCES_FILE"
-            else
-                echo -e "${RED}✖ Impossible de mettre à jour $SOURCES_FILE${NC}" >&2
+            tmp_sources=$(mktemp "${TEMP_DIR}/sources.XXXXXX") || {
+                echo -e "${RED}✖ Failed to create a source-list staging file.${NC}" >&2
+                return 1
+            }
+
+            if ! cat "$SOURCES_FILE" > "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Failed to read the existing source list.${NC}" >&2
+                return 1
             fi
-            rm -f "$tmp_sources"
+            if ! printf '%s|%s\n' "$PKG_NAME" "$REPO_URL" >> "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Failed to stage the package tracking entry.${NC}" >&2
+                return 1
+            fi
+            if ! atomic_replace_sources "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Package installed, but its update tracking entry could not be saved.${NC}" >&2
+                return 1
+            fi
+            rm -f -- "$tmp_sources"
         fi
         return 0
     else
@@ -1118,25 +1157,30 @@ debup_remove() {
 
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_PURGING" "${PKG}")"
     if run_apt_styled purge -y "$PKG"; then
-        if [ -f "$SOURCES_FILE" ] && grep -qF "${PKG}|" "$SOURCES_FILE" 2>/dev/null; then
-            local tmp_sources pkg_prefix
-            tmp_sources=$(mktemp) || { echo -e "${RED}✖ mktemp failed${NC}" >&2; return 1; }
-            pkg_prefix="${PKG}|"
-            while IFS= read -r line || [ -n "$line" ]; do
-                case "$line" in
-                    "${pkg_prefix}"*) continue ;;
-                    *) printf '%s\n' "$line" >> "$tmp_sources" ;;
-                esac
-            done < "$SOURCES_FILE"
-            if $ELEVATE cp "$tmp_sources" "$SOURCES_FILE"; then
-                $ELEVATE chmod 644 "$SOURCES_FILE"
-                printf "${GREEN}%b${NC}\n" "$(printf "$MSG_REMOVE_TRACK_SUCCESS" "${PKG}")"
-            else
-                echo -e "${RED}✖ Impossible de mettre à jour $SOURCES_FILE${NC}" >&2
+        if [ -f "$SOURCES_FILE" ] && awk -F'|' -v package="$PKG" '$1 == package { found = 1 } END { exit !found }' "$SOURCES_FILE"; then
+            local tmp_sources
+            tmp_sources=$(mktemp "${TEMP_DIR}/sources.XXXXXX") || {
+                echo -e "${RED}✖ Failed to create a source-list staging file.${NC}" >&2
+                return 1
+            }
+
+            if ! awk -F'|' -v package="$PKG" '$1 != package' "$SOURCES_FILE" > "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Failed to filter the existing source list.${NC}" >&2
+                return 1
             fi
-            rm -f "$tmp_sources"
+            if ! atomic_replace_sources "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Package was purged, but its tracking entry could not be removed.${NC}" >&2
+                return 1
+            fi
+            rm -f -- "$tmp_sources"
+            printf "${GREEN}%b${NC}\n" "$(printf "$MSG_REMOVE_TRACK_SUCCESS" "${PKG}")"
         fi
-        $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1 || true
+
+        if ! $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1; then
+            echo -e "${YELLOW}⚠ Package was purged, but APT autoremove did not complete successfully.${NC}" >&2
+        fi
         printf "${GREEN}✔ %b${NC}\n" "$(printf "$MSG_APT_PURGE_SUCCESS" "${PKG}")"
     else
         printf "${RED}✖ %b${NC}\n" "$(printf "$MSG_APT_PURGE_FAIL" "${PKG}")"
