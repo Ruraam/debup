@@ -150,6 +150,8 @@ jobs:
           grep -Fq 'apt-get --simulate dist-upgrade' debup-pkg/usr/local/bin/debup
           grep -Fq 'apt_args=(--no-remove dist-upgrade)' debup-pkg/usr/local/bin/debup
           grep -Fq 'apt_sync_failed=1' debup-pkg/usr/local/bin/debup
+          grep -Fq 'find "$CACHE_API_DIR" -mindepth 1 -maxdepth 1' debup-pkg/usr/local/bin/debup
+          grep -Fq 'clean_failed=1' debup-pkg/usr/local/bin/debup
           grep -Fq 'deb_version_matches_release_floor' debup-pkg/usr/local/bin/debup
           grep -Fq 'deb_version_is_not_newer' debup-pkg/usr/local/bin/debup
           grep -Fq 'Dry run: the GitHub token would be stored securely' debup-pkg/usr/local/bin/debup
