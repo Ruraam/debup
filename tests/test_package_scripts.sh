@@ -33,7 +33,7 @@ expected=$'other-app|https://github.com/vendor/other-app\ndebup|Ruraam/debup'
 
 # Reconfiguration must be idempotent.
 "$SCRIPT_DIR/postinst" configure
-[[ "$(grep -Fc 'debup|https://github.com/Ruraam/debup' "$ETC_DIR/sources.list")" -eq 1 ]] || {
+[[ "$(grep -Fc 'debup|Ruraam/debup' "$ETC_DIR/sources.list")" -eq 1 ]] || {
     printf 'FAIL: postinst created duplicate source entries.\n' >&2
     exit 1
 }
