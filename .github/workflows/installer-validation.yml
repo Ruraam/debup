@@ -19,6 +19,10 @@ on:
       - "installer.sh"
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
+      - "debup-pkg/DEBIAN/**"
+      - "debup-pkg/usr/local/bin/**"
+      - ".github/workflows/apt-repo.yml"
+      - ".github/workflows/release-deb.yml"
       - ".github/workflows/installer-validation.yml"
 
 permissions:
