@@ -21,9 +21,9 @@ while (($#)); do
 done
 [[ -n "$output" ]] || exit 2
 if [[ -n "${CURL_MARKER:-}" ]]; then
-    printf 'called\\n' >> "$CURL_MARKER"
+    printf 'called\n' >> "$CURL_MARKER"
 fi
-printf '%s' "${CURL_BODY:-{\"tag_name\":\"v1.0\"}}" > "$output"
+printf '%s' "${CURL_BODY-}" > "$output"
 exit "${CURL_EXIT:-0}"
 CURL
 chmod +x "$TEST_DIR/bin/curl"
