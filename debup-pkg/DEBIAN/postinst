@@ -8,7 +8,7 @@ umask 022
 
 readonly CONF_DIR="/etc/debup"
 readonly SOURCES_FILE="${CONF_DIR}/sources.list"
-readonly TRACKED_SOURCE="debup|https://github.com/Ruraam/debup"
+readonly TRACKED_SOURCE="debup|Ruraam/debup"
 
 case "${1:-}" in
     configure)
