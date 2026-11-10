@@ -20,7 +20,8 @@ fetch_github_api() {
 
     endpoint="${endpoint#https://api.github.com/}"
     endpoint="${endpoint#/}"
-    [[ "$endpoint" =~ ^[A-Za-z0-9._~/?=&%+-]+$ && "$endpoint" != *"/../"* ]] || {
+    local endpoint_pattern="^[A-Za-z0-9._~/?=&%+-]+$"
+    [[ "$endpoint" =~ $endpoint_pattern && "$endpoint" != ../* && "$endpoint" != */../* && "$endpoint" != */.. ]] || {
         printf 'GitHub API endpoint contains unsupported characters.\n' >&2
         return 1
     }
