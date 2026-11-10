@@ -42,6 +42,7 @@ CURL_MARKER="$TEST_DIR/curl.calls"
 export CURL_MARKER
 
 CURL_BODY='{"tag_name":"v1.0"}'
+export CURL_BODY
 first="$(fetch_github_api "$endpoint" 30)"
 [[ "$first" == '{"tag_name":"v1.0"}' ]]
 [[ -s "$cache_file" ]]
