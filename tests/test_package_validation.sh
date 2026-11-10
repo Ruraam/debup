@@ -87,7 +87,7 @@ while (($#)); do
     esac
 done
 [[ -n "$output" ]] || exit 2
-printf '%s' "${CURL_BODY:-downloaded-content}" > "$output"
+printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
 exit "${CURL_EXIT:-0}"
 CURL
 chmod +x "$TEST_DIR/bin/curl"
