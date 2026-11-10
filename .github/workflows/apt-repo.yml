@@ -1,18 +1,18 @@
 name: Update APT Repository
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag to publish (for example v4.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -25,49 +25,74 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Install reprepro
-        run: sudo apt-get update && sudo apt-get install -y reprepro gpg
+      - name: Install repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y reprepro gpg
 
-      - name: Download release assets
+      - name: Download assets from the requested release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          set -Eeuo pipefail
           mkdir -p debs
-          for i in $(seq 1 12); do
-            gh release download --pattern "*.deb" --dir debs/ --clobber || true
-            count=$(find debs/ -name "*.deb" | wc -l)
-          if [ "$count" -gt 0 ]; then
-            echo "Trouvé $count paquet(s) .deb !"
-            break
-          fi
-          echo "En attente des fichiers .deb (tentative $i/12)..."
-          sleep 5
+
+          for attempt in $(seq 1 12); do
+            rm -f debs/*.deb
+            if gh release download "$RELEASE_TAG" --pattern "*.deb" --dir debs/ --clobber; then
+              if find debs -maxdepth 1 -type f -name '*.deb' -print -quit | grep -q .; then
+                break
+              fi
+            fi
+
+            if [[ "$attempt" -eq 12 ]]; then
+              echo "Error: No .deb assets found in release $RELEASE_TAG." >&2
+              exit 1
+            fi
+            echo "Waiting for DEB assets for release $RELEASE_TAG (attempt $attempt/12)..."
+            sleep 5
           done
 
-          if [ "$count" -eq 0 ]; then
-            echo "ERREUR: Aucun .deb trouvé !"
+          mapfile -t packages < <(find debs -maxdepth 1 -type f -name '*.deb' -print | sort)
+          (("${#packages[@]}" > 0)) || {
+            echo "Error: Release contains no Debian packages." >&2
             exit 1
-          fi
+          }
 
-      - name: Import GPG Key and build APT repository
+          for package in "${packages[@]}"; do
+            [[ "$(dpkg-deb -f "$package" Package)" == "debup" ]] || {
+              echo "Error: Unexpected package in release: $package" >&2
+              exit 1
+            }
+          done
+
+      - name: Import signing key and build APT repository
         env:
           GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" > ~/.gnupg/gpg.conf
-          gpgconf --kill gpg-agent
+          set -Eeuo pipefail
+          [[ -n "$GPG_KEY" ]] || {
+            echo "Error: GPG_PRIVATE_KEY secret is empty." >&2
+            exit 1
+          }
 
-          echo "$GPG_KEY" | gpg --batch --yes --import
+          export GNUPGHOME="$RUNNER_TEMP/debup-gnupg"
+          install -d -m 0700 "$GNUPGHOME"
+          printf '%s\n' "$GPG_KEY" | gpg --batch --import
 
-          KEY_ID=$(gpg --list-secret-keys --with-colons | grep '^sec' | cut -d: -f5)
-          echo "Using GPG Key ID: $KEY_ID"
+          mapfile -t key_ids < <(gpg --batch --with-colons --list-secret-keys |
+            awk -F: '$1 == "sec" { print $5 }')
+          (("${#key_ids[@]}" == 1)) || {
+            echo "Error: Expected exactly one secret primary key; found ${#key_ids[@]}." >&2
+            exit 1
+          }
+          KEY_ID="${key_ids[0]}"
 
           mkdir -p public/conf
-          cat <<EOF > public/conf/distributions
+          cat > public/conf/distributions <<EOF
           Origin: debup
           Label: debup
           Codename: stable
@@ -79,12 +104,15 @@ jobs:
 
           cd public
           for deb in ../debs/*.deb; do
-            if [ -f "$deb" ]; then
-            reprepro --ask-passphrase includedeb stable "$deb" || reprepro includedeb stable "$deb"
-            fi
+            [[ -f "$deb" ]] || continue
+            reprepro --ask-passphrase includedeb stable "$deb"
           done
 
-          gpg --armor --export "$KEY_ID" > debup.gpg
+          gpg --batch --armor --export "$KEY_ID" > debup.gpg
+          [[ -s debup.gpg ]] || {
+            echo "Error: Failed to export the repository public key." >&2
+            exit 1
+          }
           touch .nojekyll
 
       - name: Setup Pages
@@ -93,7 +121,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './public'
+          path: "./public"
 
       - name: Deploy to GitHub Pages
         id: deployment
