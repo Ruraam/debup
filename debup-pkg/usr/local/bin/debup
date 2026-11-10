@@ -52,6 +52,14 @@ fi
 # shellcheck source=/dev/null
 source "$PACKAGE_VALIDATION_HELPER"
 
+API_CACHE_HELPER="${SCRIPT_DIR}/../share/debup/api_cache.sh"
+if [ ! -r "$API_CACHE_HELPER" ]; then
+    printf 'Required API cache helper is missing: %s\\n' "$API_CACHE_HELPER" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$API_CACHE_HELPER"
+
 CONF_DIR="/etc/debup"
 SOURCES_FILE="${CONF_DIR}/sources.list"
 
@@ -362,52 +370,6 @@ AUTH_HEADER=()
 if [ -n "$GITHUB_TOKEN" ]; then
     AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
 fi
-
-fetch_github_api() {
-    local endpoint="$1"
-    local ttl="${2:-30}"
-
-    endpoint="${endpoint#https://api.github.com/}"
-    endpoint="${endpoint#/}"
-
-    local cache_key
-    cache_key=$(echo "$endpoint" | tr '/' '_')
-    local cache_file="${CACHE_API_DIR}/${cache_key}.json"
-
-    if [ -f "$cache_file" ] && [ -z "$(find "$cache_file" -mmin +"$ttl" 2>/dev/null)" ]; then
-        cat "$cache_file"
-        return 0
-    fi
-
-    local response
-    response=$(curl -sS --connect-timeout 10 --max-time 25 --retry 2 --retry-delay 1 \
-        "${AUTH_HEADER[@]}" \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: debup-tool" \
-        "https://api.github.com/${endpoint}" 2>/dev/null)
-
-    if echo "$response" | grep -qiE '"message"[[:space:]]*:[[:space:]]*"(API rate limit|Not Found|Bad credentials)'; then
-        if [ -f "$cache_file" ]; then
-            cat "$cache_file"
-            return 0
-        fi
-        echo "$response"
-        return 1
-    fi
-
-    if [ -n "$response" ] && echo "$response" | jq -e . >/dev/null 2>&1; then
-        echo "$response" > "$cache_file"
-        echo "$response"
-        return 0
-    fi
-
-    if [ -f "$cache_file" ]; then
-        cat "$cache_file"
-        return 0
-    fi
-
-    return 1
-}
 
 debup_inspect() {
     local target="$1"
