@@ -1,0 +1,47 @@
+name: Installer validation
+
+on:
+  push:
+    branches:
+      - main
+      - "hardening/**"
+    paths:
+      - "installer.sh"
+      - ".github/workflows/installer-validation.yml"
+  pull_request:
+    paths:
+      - "installer.sh"
+      - ".github/workflows/installer-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  installer-static-checks:
+    name: Bash syntax and ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Validate Bash syntax
+        run: bash -n installer.sh
+
+      - name: Run ShellCheck
+        run: shellcheck --severity=error installer.sh
+
+      - name: Check required hardening guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Unknown argument:' installer.sh
+          grep -Fq 'Expected exactly one primary GPG key' installer.sh
+          grep -Fq 'if (filename == name)' installer.sh
+          grep -Fq 'Unable to determine the system architecture' installer.sh
+          grep -Fq 'APT package index update failed' installer.sh
+          grep -Fq 'Failed to set executable permissions' installer.sh
