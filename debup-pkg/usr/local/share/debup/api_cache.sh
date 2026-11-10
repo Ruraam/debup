@@ -28,7 +28,8 @@ fetch_github_api() {
 
     cache_root="${CACHE_API_DIR:-}"
     if [[ "${DRY_RUN:-false}" != "true" && -n "$cache_root" ]]; then
-        if install -d -m 700 -- "$cache_root" && chmod 700 -- "$cache_root"; then
+        if install -d -m 700 -- "$cache_root" && chmod 700 -- "$cache_root" &&
+           [[ -d "$cache_root" && ! -L "$cache_root" && -O "$cache_root" ]]; then
             cache_enabled=true
             cache_key=$(printf '%s' "$endpoint" | sha256sum) || return 1
             cache_key="${cache_key%% *}"
@@ -36,7 +37,7 @@ fetch_github_api() {
         fi
     fi
 
-    if [[ "$cache_enabled" == true && -s "$cache_file" ]] &&
+    if [[ "$cache_enabled" == true && -f "$cache_file" && ! -L "$cache_file" && -s "$cache_file" ]] &&
        find "$cache_file" -mmin "-$ttl" -print -quit 2>/dev/null | grep -q .; then
         if jq -e 'type == "object"' "$cache_file" >/dev/null 2>&1; then
             cat -- "$cache_file"
@@ -53,7 +54,7 @@ fetch_github_api() {
         tmp_file=$(mktemp "${TEMP_DIR:-/tmp}/debup-api.XXXXXX") || return 1
     fi
 
-    curl_args=(-fsSL --connect-timeout 10 --max-time 25 --retry 2 --retry-delay 1)
+    curl_args=(-fsSL --proto '=https' --proto-redir '=https' --max-redirs 10 --connect-timeout 10 --max-time 25 --retry 2 --retry-delay 1)
     if ! curl "${curl_args[@]}" "${AUTH_HEADER[@]}" \
         -H "Accept: application/vnd.github+json" \
         -H "User-Agent: debup-tool" \
