@@ -27,6 +27,8 @@ on:
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
       - "tests/test_search.sh"
+      - "tests/test_package_validation.sh"
+      - "tests/test_api_cache.sh"
       - "curated_db.txt"
       - "debup-pkg/usr/local/share/debup/**"
       - ".github/workflows/sync-catalog.yml"
