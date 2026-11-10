@@ -23,10 +23,14 @@ NC='\033[0m'
 # Global cleanup state
 # ==========================================================
 _DEBUP_CLEANUP_TMPKEY=""
+_DEBUP_CLEANUP_TMPKEYRING=""
+_DEBUP_CLEANUP_TMPSOURCES=""
 _DEBUP_CLEANUP_TEMPDIR=""
 
 _cleanup_all() {
     [ -n "${_DEBUP_CLEANUP_TMPKEY:-}" ] && rm -f -- "$_DEBUP_CLEANUP_TMPKEY"
+    [ -n "${_DEBUP_CLEANUP_TMPKEYRING:-}" ] && $SUDO rm -f -- "$_DEBUP_CLEANUP_TMPKEYRING"
+    [ -n "${_DEBUP_CLEANUP_TMPSOURCES:-}" ] && $SUDO rm -f -- "$_DEBUP_CLEANUP_TMPSOURCES"
     [ -n "${_DEBUP_CLEANUP_TEMPDIR:-}" ] && rm -rf -- "$_DEBUP_CLEANUP_TEMPDIR"
     return 0
 }
@@ -126,11 +130,23 @@ verify_gpg_fingerprint() {
         exit 1
     fi
 
-    local actual expected
-    actual=$(set -o pipefail; gpg --show-keys --with-fingerprint --with-colons "$key_file" 2>/dev/null \
-        | awk -F: '/^fpr:/ {print $10; exit}' | tr -d ' ')
+    local key_data actual expected primary_count
+    if ! key_data=$(gpg --show-keys --with-fingerprint --with-colons "$key_file" 2>/dev/null); then
+        echo -e "${RED}✖ SECURITY ALERT: Unable to inspect GPG key material.${NC}" >&2
+        exit 1
+    fi
 
-    expected=$(echo "$EXPECTED_GPG_FINGERPRINT" | tr -d ' ')
+    primary_count=$(printf '%s\n' "$key_data" | awk -F: '$1 == "pub" { count++ } END { print count+0 }')
+    if [[ "$primary_count" -ne 1 ]]; then
+        echo -e "${RED}✖ SECURITY ALERT: Expected exactly one primary GPG key; found ${primary_count}.${NC}" >&2
+        exit 1
+    fi
+
+    actual=$(printf '%s\n' "$key_data" | awk -F: '
+        $1 == "pub" { awaiting_fingerprint = 1; next }
+        awaiting_fingerprint && $1 == "fpr" { print $10; exit }
+    ' | tr -d ' ')
+    expected=$(printf '%s' "$EXPECTED_GPG_FINGERPRINT" | tr -d ' ')
 
     if [[ -z "$actual" ]]; then
         echo -e "${RED}✖ SECURITY ALERT: Unable to extract fingerprint from key.${NC}" >&2
@@ -390,14 +406,28 @@ case "$choice" in
 
         echo -e "${CYAN}[*] Importing GPG signing key...${NC}"
         $SUDO mkdir -p "$KEYRING_DIR"
-        $SUDO gpg --dearmor --yes -o "${KEYRING_PATH}.tmp" "$TMP_KEY"
-        $SUDO mv "${KEYRING_PATH}.tmp" "$KEYRING_PATH"
-        $SUDO chmod 644 "$KEYRING_PATH"
+        TMP_KEYRING=$($SUDO mktemp "${KEYRING_DIR}/.debup.gpg.XXXXXX")
+        _DEBUP_CLEANUP_TMPKEYRING="$TMP_KEYRING"
+        if ! $SUDO gpg --dearmor --yes -o "$TMP_KEYRING" "$TMP_KEY"; then
+            echo -e "${RED}✖ Failed to convert the verified GPG key to a keyring.${NC}" >&2
+            exit 1
+        fi
+        $SUDO chmod 644 "$TMP_KEYRING"
+        $SUDO mv -f -- "$TMP_KEYRING" "$KEYRING_PATH"
+        _DEBUP_CLEANUP_TMPKEYRING=""
         rm -f "$TMP_KEY"
         _DEBUP_CLEANUP_TMPKEY=""
 
         echo -e "${CYAN}[*] Configuring repository sources list...${NC}"
-        echo "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | $SUDO tee "$SOURCES_LIST" >/dev/null
+        TMP_SOURCES=$($SUDO mktemp "${SOURCES_LIST}.XXXXXX")
+        _DEBUP_CLEANUP_TMPSOURCES="$TMP_SOURCES"
+        if ! printf '%s\n' "deb [signed-by=${KEYRING_PATH}] https://ruraam.github.io/debup/ stable main" | $SUDO tee "$TMP_SOURCES" >/dev/null; then
+            echo -e "${RED}✖ Failed to write the APT sources file.${NC}" >&2
+            exit 1
+        fi
+        $SUDO chmod 644 "$TMP_SOURCES"
+        $SUDO mv -f -- "$TMP_SOURCES" "$SOURCES_LIST"
+        _DEBUP_CLEANUP_TMPSOURCES=""
 
         echo -e "${CYAN}[*] Refreshing package lists and installing debup...${NC}"
         $SUDO apt-get update -qq
