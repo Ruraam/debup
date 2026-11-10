@@ -51,6 +51,7 @@ jobs:
           bash -n debup-pkg/DEBIAN/postinst
           bash -n debup-pkg/DEBIAN/postrm
           bash -n debup-pkg/usr/local/bin/debup
+          bash -n debup-pkg/usr/local/bin/dbp
 
       - name: Run ShellCheck
         run: |
@@ -61,6 +62,8 @@ jobs:
           shellcheck --severity=error debup-pkg/DEBIAN/postinst
           shellcheck --severity=error debup-pkg/DEBIAN/postrm
           shellcheck --severity=error debup-pkg/usr/local/bin/debup
+          shellcheck --severity=error debup-pkg/usr/local/bin/dbp
+          cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
 
       - name: Test catalog synchronization
         run: bash tests/test_sync_catalog.sh
