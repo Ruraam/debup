@@ -71,7 +71,6 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 CACHE_API_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/debup/api"
-mkdir -p -m 700 "$CACHE_API_DIR" 2>/dev/null || mkdir -p "$CACHE_API_DIR"
 
 if [ -d "/usr/local/share/debup/locales" ]; then
     LOCALE_DIR="/usr/local/share/debup/locales"
