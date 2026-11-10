@@ -1128,9 +1128,9 @@ debup_check_updates() {
     printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPDATE_SYNCING_APT"
     local apt_sync_failed=0
     if [ "$DRY_RUN" = "true" ]; then
-        printf "${YELLOW}%b${NC}\\n" "$(printf "$MSG_DRY_APT_UPDATE")"
+        printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_UPDATE")"
     elif ! run_apt_styled update; then
-        printf "${YELLOW}⚠ APT index refresh failed; native package update status is unknown.\\n${NC}" >&2
+        printf "${YELLOW}⚠ APT index refresh failed; native package update status is unknown.\n${NC}" >&2
         apt_sync_failed=1
     fi
 
@@ -1139,10 +1139,10 @@ debup_check_updates() {
     if [ "$apt_sync_failed" -eq 0 ]; then
         local apt_list_output
         if apt_list_output=$(LC_ALL=C apt list --upgradable 2>/dev/null); then
-            apt_upgradable=$(printf '%s\\n' "$apt_list_output" | grep -v "^Listing\\.\\.\\." || true)
-            [ -n "$apt_upgradable" ] && apt_count=$(printf '%s\\n' "$apt_upgradable" | grep -c '/' || true)
+            apt_upgradable=$(printf '%s\n' "$apt_list_output" | grep -v "^Listing\\.\\.\\." || true)
+            [ -n "$apt_upgradable" ] && apt_count=$(printf '%s\n' "$apt_upgradable" | grep -c '/' || true)
         else
-            printf "${YELLOW}⚠ Unable to read the APT upgrade list; native package update status is unknown.\\n${NC}" >&2
+            printf "${YELLOW}⚠ Unable to read the APT upgrade list; native package update status is unknown.\n${NC}" >&2
             apt_sync_failed=1
         fi
     fi
