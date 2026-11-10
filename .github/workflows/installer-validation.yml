@@ -13,6 +13,8 @@ on:
   pull_request:
     paths:
       - "installer.sh"
+      - "scripts/sync_catalog.sh"
+      - "tests/test_sync_catalog.sh"
       - ".github/workflows/installer-validation.yml"
 
 permissions:
