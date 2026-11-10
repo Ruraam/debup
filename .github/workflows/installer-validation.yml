@@ -9,6 +9,10 @@ on:
       - "installer.sh"
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
+      - "debup-pkg/DEBIAN/**"
+      - "debup-pkg/usr/local/bin/**"
+      - ".github/workflows/apt-repo.yml"
+      - ".github/workflows/release-deb.yml"
       - ".github/workflows/installer-validation.yml"
   pull_request:
     paths:
@@ -37,15 +41,33 @@ jobs:
         run: |
           bash -n installer.sh
           bash -n scripts/sync_catalog.sh
+          bash -n tests/test_sync_catalog.sh
+          bash -n debup-pkg/DEBIAN/postinst
+          bash -n debup-pkg/DEBIAN/postrm
 
       - name: Run ShellCheck
         run: |
           shellcheck --severity=error installer.sh
           shellcheck --severity=error scripts/sync_catalog.sh
           shellcheck --severity=error tests/test_sync_catalog.sh
+          shellcheck --severity=error debup-pkg/DEBIAN/postinst
+          shellcheck --severity=error debup-pkg/DEBIAN/postrm
 
       - name: Test catalog synchronization
         run: bash tests/test_sync_catalog.sh
+
+      - name: Build and inspect Debian package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+          cp -a debup-pkg "$work_dir/debup-pkg"
+          chmod 0755 "$work_dir/debup-pkg/DEBIAN/postinst" "$work_dir/debup-pkg/DEBIAN/postrm"
+          dpkg-deb --build --root-owner-group "$work_dir/debup-pkg" "$work_dir/debup-ci.deb"
+          [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Package)" == "debup" ]]
+          [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Architecture)" == "all" ]]
+          dpkg-deb --contents "$work_dir/debup-ci.deb" >/dev/null
 
       - name: Check required hardening guards
         shell: bash
