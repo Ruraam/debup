@@ -696,6 +696,28 @@ check_and_update() {
         echo -e "${YELLOW}ℹ No checksum asset published by this release; proceeding without publisher checksum.${NC}"
     fi
 
+    local held_packages
+    if ! held_packages=$(apt-mark showhold 2>/dev/null); then
+        echo -e "${RED}✖ Unable to verify APT package holds; installation aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    if grep -Fxq -- "$deb_pkg" <<< "$held_packages"; then
+        printf "${YELLOW}Package %s is held; refusing to change its version.\\n${NC}" "$deb_pkg" >&2
+        rm -f -- "$tmp_deb"
+        return 2
+    fi
+
+    local installed_package_version=""
+    if installed_package_version=$(dpkg-query -W -f='${Version}' "$deb_pkg" 2>/dev/null) &&
+       [ -n "$installed_package_version" ] &&
+       dpkg --compare-versions "$DEB_VALIDATED_VERSION" le "$installed_package_version"; then
+        printf "${GREEN}Package %s is already installed at version %s; downloaded version %s is not newer.\\n${NC}" \
+            "$deb_pkg" "$installed_package_version" "$DEB_VALIDATED_VERSION"
+        rm -f -- "$tmp_deb"
+        return 2
+    fi
+
     if [ "$ASSUME_YES" != "true" ]; then
         local check_scripts=()
         for s in preinst postinst prerm postrm; do
@@ -736,8 +758,22 @@ check_and_update() {
         PKG_NAME="$deb_pkg"
     fi
 
+    local apt_plan
+    if ! apt_plan=$($ELEVATE env LC_ALL=C apt-get --simulate install "$tmp_deb" 2>&1); then
+        echo -e "${RED}✖ APT could not resolve the requested package transaction; installation aborted.${NC}" >&2
+        printf '%s\\n' "$apt_plan" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    if apt_plan_has_removals "$apt_plan"; then
+        echo -e "${RED}✖ APT would remove or purge installed packages; refusing this transaction.${NC}" >&2
+        printf '%s\\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+
     echo -e "${YELLOW}${MSG_INSTALLING_PKG}${NC}"
-    if $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get install -y "$tmp_deb"; then
+    if $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get --no-remove install -y "$tmp_deb"; then
         rm -f "$tmp_deb"
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${GREEN}%b${NC}\n\n" "$(printf "$MSG_SUCCESS_INSTALLED" "${PKG_NAME}" "${latest_tag}")"
