@@ -52,6 +52,14 @@ fi
 # shellcheck source=/dev/null
 source "$PACKAGE_VALIDATION_HELPER"
 
+API_CACHE_HELPER="${SCRIPT_DIR}/../share/debup/api_cache.sh"
+if [ ! -r "$API_CACHE_HELPER" ]; then
+    printf 'Required API cache helper is missing: %s\\n' "$API_CACHE_HELPER" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$API_CACHE_HELPER"
+
 CONF_DIR="/etc/debup"
 SOURCES_FILE="${CONF_DIR}/sources.list"
 
@@ -63,7 +71,6 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 CACHE_API_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/debup/api"
-mkdir -p -m 700 "$CACHE_API_DIR" 2>/dev/null || mkdir -p "$CACHE_API_DIR"
 
 if [ -d "/usr/local/share/debup/locales" ]; then
     LOCALE_DIR="/usr/local/share/debup/locales"
@@ -363,52 +370,6 @@ if [ -n "$GITHUB_TOKEN" ]; then
     AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
 fi
 
-fetch_github_api() {
-    local endpoint="$1"
-    local ttl="${2:-30}"
-
-    endpoint="${endpoint#https://api.github.com/}"
-    endpoint="${endpoint#/}"
-
-    local cache_key
-    cache_key=$(echo "$endpoint" | tr '/' '_')
-    local cache_file="${CACHE_API_DIR}/${cache_key}.json"
-
-    if [ -f "$cache_file" ] && [ -z "$(find "$cache_file" -mmin +"$ttl" 2>/dev/null)" ]; then
-        cat "$cache_file"
-        return 0
-    fi
-
-    local response
-    response=$(curl -sS --connect-timeout 10 --max-time 25 --retry 2 --retry-delay 1 \
-        "${AUTH_HEADER[@]}" \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: debup-tool" \
-        "https://api.github.com/${endpoint}" 2>/dev/null)
-
-    if echo "$response" | grep -qiE '"message"[[:space:]]*:[[:space:]]*"(API rate limit|Not Found|Bad credentials)'; then
-        if [ -f "$cache_file" ]; then
-            cat "$cache_file"
-            return 0
-        fi
-        echo "$response"
-        return 1
-    fi
-
-    if [ -n "$response" ] && echo "$response" | jq -e . >/dev/null 2>&1; then
-        echo "$response" > "$cache_file"
-        echo "$response"
-        return 0
-    fi
-
-    if [ -f "$cache_file" ]; then
-        cat "$cache_file"
-        return 0
-    fi
-
-    return 1
-}
-
 debup_inspect() {
     local target="$1"
     if [ -z "$target" ]; then
@@ -466,7 +427,7 @@ debup_inspect() {
     mkdir -p "$inspect_dir"
 
     echo -e "${GRAY}${MSG_INSPECT_DOWNLOADING}${NC}"
-    if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 -o "$tmp_deb" "$deb_url"; then
+    if ! download_file_atomic "$deb_url" "$tmp_deb" 300 false; then
         echo -e "${BLUE}---------------------------------------${NC}"
         echo -e "${RED}${MSG_ERR_INSPECT_DL}${NC}"
         return 1
@@ -690,10 +651,10 @@ check_and_update() {
 
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${YELLOW}%b${NC} ${GRAY}%s${NC}\n" "$(printf "$MSG_DOWNLOADING" "")" "${deb_url}"
-    if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 --progress-bar -o "$tmp_deb" "$deb_url"; then
+    if ! download_file_atomic "$deb_url" "$tmp_deb" 300 true; then
         echo -e "${BLUE}---------------------------------------${NC}"
-        echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\n"
-        rm -f "$tmp_deb"
+        echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\\n"
+        rm -f -- "$tmp_deb"
         return 1
     fi
 
@@ -708,21 +669,11 @@ check_and_update() {
     if [ -n "$checksum_url" ]; then
         echo -e "${BLUE}::${NC} ${CYAN}${MSG_VERIFYING_CHECKSUM}${NC}"
         local tmp_hash_file="$TEMP_DIR/checksums.txt"
-        if ! curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 -o "$tmp_hash_file" "$checksum_url"; then
+            if ! download_file_atomic "$checksum_url" "$tmp_hash_file" 30 false; then
             echo -e "${RED}✖ Published checksum asset could not be downloaded; refusing installation.${NC}" >&2
             rm -f -- "$tmp_deb" "$tmp_hash_file"
             return 1
         fi
-        if ! verify_deb_sha256 "$tmp_deb" "$tmp_hash_file" "$deb_filename"; then
-            echo -e "${RED}✖ Published checksum verification failed; refusing installation.${NC}" >&2
-            rm -f -- "$tmp_deb" "$tmp_hash_file"
-            return 1
-        fi
-        echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
-        rm -f -- "$tmp_hash_file"
-    else
-        echo -e "${YELLOW}ℹ No checksum asset published by this release; proceeding without publisher checksum.${NC}"
-    fi
 
     if [ "$ASSUME_YES" != "true" ]; then
         local check_scripts=()
