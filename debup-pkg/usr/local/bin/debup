@@ -592,29 +592,43 @@ check_and_update() {
         return 1
     fi
 
-    local checksum_assets checksum_url checksum_count
-    checksum_assets=$(jq -r --arg n "$chosen_deb" '[.assets[] | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum")) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+    local checksum_names checksum_assets checksum_url checksum_count
+    checksum_names=$(jq -r --arg n "$chosen_deb" '[.assets[] | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum")) | .name] | .[]' <<< "$release_json") || {
         echo -e "${RED}✖ Unable to parse checksum asset metadata.${NC}" >&2
         return 1
     }
-    checksum_count=$(printf '%s\\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+    checksum_count=$(printf '%s\\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
 
     if [ "$checksum_count" -eq 0 ]; then
-        checksum_assets=$(jq -r '[.assets[] | select(.name | test("^(SHA256SUMS|sha256sums|checksums\\.txt)$"; "i")) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+        checksum_names=$(jq -r '[.assets[] | select(.name | test("^(SHA256SUMS|sha256sums|checksums\\.txt)$"; "i")) | .name] | .[]' <<< "$release_json") || {
             echo -e "${RED}✖ Unable to parse checksum manifest metadata.${NC}" >&2
             return 1
         }
-        checksum_count=$(printf '%s\\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+        checksum_count=$(printf '%s\\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
     fi
 
     if [ "$checksum_count" -gt 1 ]; then
         echo -e "${RED}✖ Multiple checksum assets are ambiguous for this release.${NC}" >&2
         return 1
     fi
-    checksum_url="$checksum_assets"
-    if [ -n "$checksum_url" ] && [[ ! "$checksum_url" =~ ^https://[^[:space:]]+$ ]]; then
-        echo -e "${RED}✖ The checksum asset has an invalid download URL.${NC}" >&2
-        return 1
+
+    checksum_url=""
+    if [ "$checksum_count" -eq 1 ]; then
+        checksum_assets=$(jq -r --arg n "$checksum_names" '[.assets[] | select(.name == $n) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+            echo -e "${RED}✖ Unable to parse checksum download URL.${NC}" >&2
+            return 1
+        }
+        local checksum_url_count
+        checksum_url_count=$(printf '%s\\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+        if [ "$checksum_url_count" -ne 1 ]; then
+            echo -e "${RED}✖ Published checksum asset has no unique download URL.${NC}" >&2
+            return 1
+        fi
+        checksum_url="$checksum_assets"
+        if [[ ! "$checksum_url" =~ ^https://[^[:space:]]+$ ]]; then
+            echo -e "${RED}✖ The checksum asset has an invalid download URL.${NC}" >&2
+            return 1
+        fi
     fi
 
     if [ "$DRY_RUN" = "true" ]; then
