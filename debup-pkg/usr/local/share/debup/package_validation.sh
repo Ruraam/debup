@@ -69,7 +69,7 @@ verify_deb_sha256() {
     }
 
     expected_hash=$(awk -v wanted="$expected_name" '
-        function valid_hash(value) {
+        function valid_hash(value) { return length(value) == 64 && value ~ /^[[:xdigit:]]+$/ }
             return value ~ /^[[:xdigit:]]{64}$/
         }
         NF == 1 {
@@ -84,8 +84,8 @@ verify_deb_sha256() {
             records++
             hash = $1
             file = $2
-            sub(/^\\*/, "", file)
-            sub(/^\\.\\//, "", file)
+            sub(/^\*/, "", file)
+            sub(/^\*/, "", file)
             n = split(file, parts, "/")
             if (parts[n] == wanted) {
                 if (valid_hash(hash)) {
@@ -111,7 +111,7 @@ verify_deb_sha256() {
             exit 1
         }
     ' "$manifest") || {
-        printf 'Checksum manifest has no unique valid SHA-256 entry for %s.\\n' "$expected_name" >&2
+        printf 'Checksum manifest has no unique valid SHA-256 entry for %s.\n' "$expected_name" >&2
         return 1
     }
 
