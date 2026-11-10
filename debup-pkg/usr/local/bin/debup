@@ -1415,11 +1415,11 @@ case "$1" in
 
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPGRADE_APT_TITLE"
-        local apt_upgrade_failed=0
+        apt_upgrade_failed=0
         if [ "$DRY_RUN" = "true" ]; then
             printf "${YELLOW}%b${NC}\n" "$MSG_DRY_APT_UPGRADE"
         else
-            local apt_upgrade_plan
+            apt_upgrade_plan=""
             if ! apt_upgrade_plan=$($ELEVATE env LC_ALL=C apt-get --simulate dist-upgrade 2>&1); then
                 echo -e "${RED}✖ APT could not simulate the system upgrade; no APT changes were made.${NC}" >&2
                 printf '%s\n' "$apt_upgrade_plan" >&2
