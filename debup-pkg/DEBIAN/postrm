@@ -1,19 +1,29 @@
 #!/usr/bin/env bash
+#
+# debup package post-removal configuration.
+#
 
-set -e
+set -Eeuo pipefail
 
-case "$1" in
-purge)
-rm -rf /etc/debup
-;;
+case "${1:-}" in
+    purge)
+        # Remove package-owned configuration without deleting unrelated user files.
+        rm -f -- /etc/debup/sources.list
+        rmdir --ignore-fail-on-non-empty /etc/debup 2>/dev/null || {
+            if [[ -e /etc/debup && ! -d /etc/debup ]]; then
+                printf 'Error: /etc/debup exists but is not a directory.\n' >&2
+                exit 1
+            fi
+        }
+        ;;
 
-remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-;;
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
 
-*)
-echo "postrm called with unknown argument: $1" >&2
-exit 1
-;;
+    *)
+        printf 'postrm called with unknown argument: %s\n' "${1:-<missing>}" >&2
+        exit 1
+        ;;
 esac
 
 exit 0
