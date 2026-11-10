@@ -34,7 +34,7 @@ sed 's/^Architecture: all$/Architecture: amd64/' "$TEST_DIR/pkg/DEBIAN/control" 
 mv "$TEST_DIR/pkg/DEBIAN/control.tmp" "$TEST_DIR/pkg/DEBIAN/control"
 dpkg-deb --build "$TEST_DIR/pkg" "$TEST_DIR/wrong-architecture.deb" >/dev/null 2>&1
 if validate_deb_metadata "$TEST_DIR/wrong-architecture.deb" "definitely-not-this-architecture" 2>/dev/null; then
-    printf 'FAIL: architecture mismatch was accepted\\n' >&2
+    printf 'FAIL: architecture mismatch was accepted\n' >&2
     exit 1
 fi
 
@@ -75,120 +75,12 @@ if validate_deb_metadata "$TEST_DIR/not-a-deb" "$(dpkg --print-architecture)" 2>
     exit 1
 fi
 
-if apt_plan_has_removals cat > "$TEST_DIR/bin/curl" <<'CURL'
-#!/usr/bin/env bash
-set -u
-output=""
-while (($#)); do
-    case "$1" in
-        -o) output="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-[[ -n "$output" ]] || exit 2
-printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
-exit "${CURL_EXIT:-0}"
-CURL
-chmod +x "$TEST_DIR/bin/curl"
-PATH="$TEST_DIR/bin:$PATH"
-export PATH
-
-printf 'old-content' > "$TEST_DIR/atomic.deb"
-CURL_BODY='complete-new-content'
-CURL_EXIT=0
-export CURL_BODY CURL_EXIT
-download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-
-CURL_BODY='partial-content'
-CURL_EXIT=22
-export CURL_BODY CURL_EXIT
-if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: failed download was reported as successful\n' >&2
+if apt_plan_has_removals "Inst safe-package (1.0 Debian:stable)"; then
+    printf 'FAIL: safe APT transaction was flagged as removing packages\n' >&2
     exit 1
 fi
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-shopt -s nullglob
-staging=("$TEST_DIR"/atomic.deb.part.*)
-[[ "${#staging[@]}" -eq 0 ]]
-
-CURL_BODY=''
-CURL_EXIT=0
-export CURL_BODY CURL_EXIT
-if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: empty download was accepted\n' >&2
-    exit 1
-fi
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-
-if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: non-HTTPS download URL was accepted\n' >&2
-    exit 1
-fi
-
-printf 'PASS: atomic download staging, failure preservation, and empty-file rejection\n'
-
-printf 'PASS: Debian metadata and SHA-256 validation regression tests\n'
-Inst safe-package (1.0 Debian:stable)'; then
-    printf 'FAIL: safe APT transaction was flagged as removing packages\\n' >&2
-    exit 1
-fi
-if ! apt_plan_has_removals cat > "$TEST_DIR/bin/curl" <<'CURL'
-#!/usr/bin/env bash
-set -u
-output=""
-while (($#)); do
-    case "$1" in
-        -o) output="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-[[ -n "$output" ]] || exit 2
-printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
-exit "${CURL_EXIT:-0}"
-CURL
-chmod +x "$TEST_DIR/bin/curl"
-PATH="$TEST_DIR/bin:$PATH"
-export PATH
-
-printf 'old-content' > "$TEST_DIR/atomic.deb"
-CURL_BODY='complete-new-content'
-CURL_EXIT=0
-export CURL_BODY CURL_EXIT
-download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-
-CURL_BODY='partial-content'
-CURL_EXIT=22
-export CURL_BODY CURL_EXIT
-if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: failed download was reported as successful\n' >&2
-    exit 1
-fi
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-shopt -s nullglob
-staging=("$TEST_DIR"/atomic.deb.part.*)
-[[ "${#staging[@]}" -eq 0 ]]
-
-CURL_BODY=''
-CURL_EXIT=0
-export CURL_BODY CURL_EXIT
-if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: empty download was accepted\n' >&2
-    exit 1
-fi
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-
-if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: non-HTTPS download URL was accepted\n' >&2
-    exit 1
-fi
-
-printf 'PASS: atomic download staging, failure preservation, and empty-file rejection\n'
-
-printf 'PASS: Debian metadata and SHA-256 validation regression tests\n'
-Inst replacement (2.0 Debian:stable)\\nRemv conflicting-package [1.0]'; then
-    printf 'FAIL: APT transaction package removal was not detected\\n' >&2
+if ! apt_plan_has_removals $'Inst replacement (2.0 Debian:stable)\nRemv conflicting-package [1.0]'; then
+    printf 'FAIL: APT transaction package removal was not detected\n' >&2
     exit 1
 fi
 
@@ -244,6 +136,4 @@ if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.d
     exit 1
 fi
 
-printf 'PASS: atomic download staging, failure preservation, and empty-file rejection\n'
-
-printf 'PASS: Debian metadata and SHA-256 validation regression tests\n'
+printf 'PASS: package metadata, checksums, atomic downloads, and APT transaction validation\n'
