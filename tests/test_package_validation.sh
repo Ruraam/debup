@@ -9,8 +9,8 @@ source "${ROOT_DIR}/debup-pkg/usr/local/share/debup/package_validation.sh"
 TEST_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_DIR"' EXIT
 
-mkdir -p "$TEST_DIR/control" "$TEST_DIR/root"
-cat > "$TEST_DIR/control/control" <<'EOF'
+mkdir -p "$TEST_DIR/pkg/DEBIAN" "$TEST_DIR/pkg/usr/share/debup-validation"
+cat > "$TEST_DIR/pkg/DEBIAN/control" <<'EOF'
 Package: debup-validation-fixture
 Version: 1.2.3-1
 Architecture: all
