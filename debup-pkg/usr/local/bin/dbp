@@ -443,8 +443,23 @@ debup_inspect() {
         return 1
     fi
 
-    local deb_url
-    deb_url=$(echo "$release_json" | jq -r --arg name "$chosen_deb" '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+    if [[ "$chosen_deb" == */* || "$chosen_deb" == "." || "$chosen_deb" == ".." ]]; then
+        echo -e "${RED}✖ Invalid Debian asset filename returned by GitHub.${NC}" >&2
+        return 1
+    fi
+
+    local deb_urls deb_url_count deb_url
+    deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || return 1
+    deb_url_count=$(printf '%s\\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
+    if [ "$deb_url_count" -ne 1 ]; then
+        echo -e "${RED}✖ The selected Debian asset does not have exactly one download URL.${NC}" >&2
+        return 1
+    fi
+    deb_url="$deb_urls"
+    if [[ ! "$deb_url" =~ ^https://[^[:space:]]+$ ]]; then
+        echo -e "${RED}✖ The selected Debian asset has an invalid download URL.${NC}" >&2
+        return 1
+    fi
 
     local tmp_deb="$TEMP_DIR/inspect.deb"
     local inspect_dir="$TEMP_DIR/control_data"
@@ -457,7 +472,17 @@ debup_inspect() {
         return 1
     fi
 
-    dpkg-deb -e "$tmp_deb" "$inspect_dir" 2>/dev/null
+    if ! validate_deb_metadata "$tmp_deb" "$ARCH"; then
+        echo -e "${RED}✖ Downloaded Debian package failed metadata validation; inspection aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+
+    if ! dpkg-deb -e "$tmp_deb" "$inspect_dir" 2>/dev/null; then
+        echo -e "${RED}✖ Unable to extract the Debian control archive; inspection aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
 
     echo -e "${BLUE}---------------------------------------------------------${NC}"
     echo -e "${YELLOW}⚙  ${MSG_INSPECT_SCRIPTS}${NC}"
@@ -481,7 +506,13 @@ debup_inspect() {
     echo -e "${YELLOW}📁 ${MSG_INSPECT_FILES}${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 
-    dpkg-deb -c "$tmp_deb" | awk '{print $1, $2, $6}' | sed 's/^/  /'
+    local file_listing
+    if ! file_listing=$(dpkg-deb -c "$tmp_deb"); then
+        echo -e "${RED}✖ Unable to read the Debian package file list.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    printf '%s\\n' "$file_listing" | awk '{print $1, $2, $6}' | sed 's/^/  /'
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 }
 
