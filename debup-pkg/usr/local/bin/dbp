@@ -38,6 +38,12 @@ USER_LANG="${SYSTEM_LOCALE%%_*}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 
+SEARCH_HELPER="${SCRIPT_DIR}/../share/debup/search.sh"
+if [ -f "$SEARCH_HELPER" ]; then
+    # shellcheck source=/dev/null
+    source "$SEARCH_HELPER"
+fi
+
 CONF_DIR="/etc/debup"
 SOURCES_FILE="${CONF_DIR}/sources.list"
 
@@ -743,38 +749,35 @@ debup_search() {
     fi
 
     local gh_query
-    if command -v jq >/dev/null 2>&1; then
-        gh_query=$(printf '%s in:name' "$query" | jq -sRr @uri)
-    else
-        gh_query=$(printf '%s in:name' "$query" | sed \
-            -e 's/%/%25/g' \
-            -e 's/ /%20/g' \
-            -e 's/&/%26/g' \
-            -e 's/#/%23/g' \
-            -e 's/?/%3F/g' \
-            -e 's/+/%2B/g' \
-            -e 's/=/%3D/g' \
-            -e 's|/|%2F|g')
-    fi
+    gh_query=$(printf '%s in:name' "$query" | jq -sRr @uri) || {
+        echo -e "${RED}✖ Failed to encode the GitHub search query.${NC}" >&2
+        return 1
+    }
 
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_SEARCHING_GH" "$query")"
 
-    local global_targets=()
-    local global_types=()
+    local -a global_targets=()
+    local -a global_types=()
     local display_idx=1
+    local apt_results=""
+    local apt_search_failed=false
 
     echo -e "\n${MAGENTA}${BOLD}[ Debian / APT ]${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
-    local apt_results
-    apt_results=$(apt-cache search "$query" 2>/dev/null | head -n 5)
+
+    if ! apt_results=$(apt-cache search "$query" 2>/dev/null); then
+        apt_search_failed=true
+        apt_results=""
+    fi
+    apt_results=$(printf '%s\n' "$apt_results" | awk 'NR <= 5')
 
     if [ -n "$apt_results" ]; then
         while IFS= read -r line; do
             [ -z "$line" ] && continue
             local apt_pkg apt_desc
-            apt_pkg=$(echo "$line" | awk '{print $1}')
-            apt_desc=$(echo "$line" | cut -d' ' -f2-)
+            read -r apt_pkg apt_desc <<< "$line"
+            [ -n "$apt_pkg" ] || continue
 
             global_targets[display_idx]="$apt_pkg"
             global_types[display_idx]="APT"
@@ -783,6 +786,8 @@ debup_search() {
                 "$display_idx" "$apt_pkg" "${apt_desc:0:70}"
             display_idx=$((display_idx + 1))
         done <<< "$apt_results"
+    elif [ "$apt_search_failed" = true ]; then
+        echo -e " ${YELLOW}APT search is currently unavailable.${NC}"
     else
         echo -e " ${GRAY}${MSG_SEARCH_NO_APT}${NC}"
     fi
@@ -790,46 +795,88 @@ debup_search() {
     echo -e "\n${GREEN}${BOLD}[ GitHub Releases ]${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 
-    local raw_results
-    raw_results=$(curl -sS --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
-        "${AUTH_HEADER[@]}" \
-        "https://api.github.com/search/repositories?q=${gh_query}&sort=stars&order=desc&per_page=10")
+    local -a candidate_repos=()
+    local -a candidate_stars=()
+    local -a candidate_descs=()
+    local -A seen_repos=()
+    local catalog_file="${SCRIPT_DIR}/../share/debup/curated_db.txt"
+    local catalog_entries=""
 
-    local raw_count
-    raw_count=$(echo "$raw_results" | jq -r '.items | length' 2>/dev/null)
+    if declare -F catalog_search_repositories >/dev/null 2>&1; then
+        catalog_entries=$(catalog_search_repositories "$catalog_file" "$query") || catalog_entries=""
+    fi
 
-    if [ -n "$raw_count" ] && [ "$raw_count" -gt 0 ]; then
+    local catalog_repo catalog_package repo_key
+    while IFS='|' read -r catalog_repo catalog_package; do
+        [ -n "$catalog_repo" ] || continue
+        repo_key=$(printf '%s' "$catalog_repo" | tr '[:upper:]' '[:lower:]')
+        [ -n "${seen_repos[$repo_key]+present}" ] && continue
+        seen_repos[$repo_key]=1
+        candidate_repos+=("$catalog_repo")
+        candidate_stars+=("-")
+        candidate_descs+=("Curated package: $catalog_package")
+    done <<< "$catalog_entries"
+
+    local raw_results=""
+    if raw_results=$(fetch_github_api "search/repositories?q=${gh_query}&sort=stars&order=desc&per_page=10" 10); then
+        if jq -e 'type == "object" and (.items | type == "array")' >/dev/null 2>&1 <<< "$raw_results"; then
+            while IFS=$'\t' read -r repo stars desc; do
+                [ -n "$repo" ] || continue
+                repo_key=$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')
+                [ -n "${seen_repos[$repo_key]+present}" ] && continue
+                seen_repos[$repo_key]=1
+                candidate_repos+=("$repo")
+                candidate_stars+=("$stars")
+                candidate_descs+=("$desc")
+            done < <(jq -r '.items[]? | select(.full_name | type == "string") | [.full_name, (.stargazers_count // 0 | tostring), (.description // "")] | @tsv' <<< "$raw_results")
+        fi
+    fi
+
+    if [ "${#candidate_repos[@]}" -eq 0 ]; then
+        printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
+    else
         echo -e "${GRAY}${MSG_VERIFYING_DEBS}${NC}"
-
         local gh_valid=0
+        local candidate_index=0
+        local check_release deb_assets has_deb candidate_repo candidate_stars_value candidate_desc
 
-        while IFS=$'\t' read -r repo stars desc; do
-            local check_release
-            check_release=$(fetch_github_api "repos/${repo}/releases/latest" 10)
+        for candidate_repo in "${candidate_repos[@]}"; do
+            candidate_stars_value="${candidate_stars[$candidate_index]}"
+            candidate_desc="${candidate_descs[$candidate_index]}"
+            candidate_index=$((candidate_index + 1))
 
-            local deb_assets
-            deb_assets=$(echo "$check_release" | jq -r '.assets[]?.name // empty' 2>/dev/null | grep -iE '\.deb$')
-            local has_deb
-            has_deb=$(filter_compatible_debs "$deb_assets" | head -n1)
+            local check_release=""
+            if ! check_release=$(fetch_github_api "repos/${candidate_repo}/releases/latest" 10); then
+                continue
+            fi
+            if ! jq -e 'type == "object" and (.tag_name | type == "string") and (.assets | type == "array")' >/dev/null 2>&1 <<< "$check_release"; then
+                continue
+            fi
+
+            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$check_release")
+            has_deb=$(filter_compatible_debs "$deb_assets" | head -n 1)
 
             if [ -n "$has_deb" ]; then
-                global_targets[display_idx]="$repo"
+                global_targets[display_idx]="$candidate_repo"
                 global_types[display_idx]="GH"
 
-                printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\n     ${GRAY}%s${NC}\n" \
-                    "$display_idx" "$repo" "$stars" "${desc:0:70}"
+                if [ "$candidate_stars_value" = "-" ]; then
+                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${CYAN}(curated)${NC}\n     ${GRAY}%s${NC}\n" \
+                        "$display_idx" "$candidate_repo" "${candidate_desc:0:70}"
+                else
+                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\n     ${GRAY}%s${NC}\n" \
+                        "$display_idx" "$candidate_repo" "$candidate_stars_value" "${candidate_desc:0:70}"
+                fi
 
                 display_idx=$((display_idx + 1))
                 gh_valid=$((gh_valid + 1))
                 [ "$gh_valid" -ge 5 ] && break
             fi
-        done < <(echo "$raw_results" | jq -r '.items[]? | [.full_name, (.stargazers_count|tostring), (.description // "")] | @tsv')
+        done
 
         if [ "$gh_valid" -eq 0 ]; then
             printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_DEB_IN_REPOS" "$query")"
         fi
-    else
-        printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
     fi
 
     local total_options=$((display_idx - 1))
@@ -848,13 +895,13 @@ debup_search() {
     read -ra packagesnum <<< "${raw_input//,/ }"
 
     local -a selected_indices=()
-
+    local token idx
     for token in "${packagesnum[@]}"; do
         if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-            local start="${BASH_REMATCH[1]}"
-            local end="${BASH_REMATCH[2]}"
-            if (( start > 0 && end <= total_options && start <= end )); then
-                for ((idx=start; idx<=end; idx++)); do
+            local range_start="${BASH_REMATCH[1]}"
+            local range_end="${BASH_REMATCH[2]}"
+            if (( range_start > 0 && range_end <= total_options && range_start <= range_end )); then
+                for ((idx=range_start; idx<=range_end; idx++)); do
                     selected_indices+=("$idx")
                 done
             fi
@@ -868,11 +915,12 @@ debup_search() {
     [ "${#selected_indices[@]}" -eq 0 ] && { echo -e "${RED}${MSG_OP_CANCELED}${NC}"; return 0; }
 
     local -a unique_indices=()
-    read -ra unique_indices < <(printf "%s\n" "${selected_indices[@]}" | sort -nu)
+    read -ra unique_indices < <(printf '%s\n' "${selected_indices[@]}" | sort -nu)
 
+    local choice selected_target selected_type
     for choice in "${unique_indices[@]}"; do
-        local selected_target="${global_targets[choice]}"
-        local selected_type="${global_types[choice]}"
+        selected_target="${global_targets[choice]}"
+        selected_type="${global_types[choice]}"
 
         echo -e "${BLUE}---------------------------------------${NC}"
 
@@ -888,10 +936,13 @@ debup_search() {
             printf "${CYAN}%b${NC} ${GREEN}%s${NC}...\n" "$(printf "$MSG_INSPECTING_ASSETS" "")" "$selected_repo"
 
             local release_data
-            release_data=$(fetch_github_api "repos/${selected_repo}/releases/latest" 10)
+            release_data=$(fetch_github_api "repos/${selected_repo}/releases/latest" 10) || {
+                echo -e "${RED}Unable to retrieve the latest GitHub release.${NC}" >&2
+                continue
+            }
 
             local deb_assets
-            deb_assets=$(echo "$release_data" | jq -r '.assets[]?.name // empty' 2>/dev/null | grep -iE '\.deb$')
+            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$release_data")
 
             if [ -z "$deb_assets" ]; then
                 echo -e "${RED}${MSG_ERR_NO_DEB_IN_RELEASE}${NC}"
@@ -916,7 +967,6 @@ debup_search() {
         fi
     done
 }
-
 debup_info() {
     local target="$1"
     if [ -z "$target" ]; then
