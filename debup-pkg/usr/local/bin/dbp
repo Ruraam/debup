@@ -64,7 +64,7 @@ CONF_DIR="/etc/debup"
 SOURCES_FILE="${CONF_DIR}/sources.list"
 
 TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/debup.XXXXXX") || {
-    printf 'Unable to create a secure temporary directory.\\n' >&2
+    printf 'Unable to create a secure temporary directory.\n' >&2
     exit 1
 }
 cleanup() {
@@ -394,7 +394,7 @@ debup_inspect() {
 
     local release_json
     if ! release_json=$(fetch_github_api "$api_url" 10); then
-        printf "${RED}GitHub release metadata could not be retrieved; inspection aborted.\\n${NC}" >&2
+        printf "${RED}GitHub release metadata could not be retrieved; inspection aborted.\n${NC}" >&2
         return 1
     fi
 
@@ -1025,7 +1025,7 @@ debup_info() {
 
     local repo_data
     if ! repo_data=$(fetch_github_api "repos/${target}" 30); then
-        printf "${RED}GitHub repository metadata could not be retrieved; no cached fallback was used.\\n${NC}" >&2
+        printf "${RED}GitHub repository metadata could not be retrieved; no cached fallback was used.\n${NC}" >&2
         return 1
     fi
 
@@ -1038,7 +1038,7 @@ debup_info() {
 
     local release_data
     if ! release_data=$(fetch_github_api "repos/${target}/releases/latest" 15); then
-        printf "${RED}GitHub release metadata could not be retrieved.\\n${NC}" >&2
+        printf "${RED}GitHub release metadata could not be retrieved.\n${NC}" >&2
         return 1
     fi
 
@@ -1117,14 +1117,14 @@ debup_check_updates() {
         repo_path=$(echo "$repo" | sed -E 's#^https?://github.com/##; s#/$##; s#\.git$##')
         local release_json
         if ! release_json=$(fetch_github_api "repos/${repo_path}/releases/latest" 15); then
-            printf "${YELLOW}⚠ Unable to verify updates for %s (%s).\\n${NC}" "$pkg" "$repo_path" >&2
+            printf "${YELLOW}⚠ Unable to verify updates for %s (%s).\n${NC}" "$pkg" "$repo_path" >&2
             gh_check_failed=1
             continue
         fi
         local latest_tag
         latest_tag=$(echo "$release_json" | jq -r '.tag_name // empty' 2>/dev/null | tr -d '\r')
         if [ -z "$latest_tag" ]; then
-            printf "${YELLOW}⚠ No valid latest release was returned for %s (%s).\\n${NC}" "$pkg" "$repo_path" >&2
+            printf "${YELLOW}⚠ No valid latest release was returned for %s (%s).\n${NC}" "$pkg" "$repo_path" >&2
             gh_check_failed=1
             continue
         fi
@@ -1147,14 +1147,14 @@ debup_check_updates() {
                 "$up_pkg" "$up_loc" "$up_rem" "$up_repo"
         done
     elif [ "$gh_check_failed" -eq 1 ]; then
-        printf "${YELLOW}⚠ Some tracked GitHub packages could not be checked; their update status is unknown.\\n${NC}" >&2
+        printf "${YELLOW}⚠ Some tracked GitHub packages could not be checked; their update status is unknown.\n${NC}" >&2
     else
         printf "${GREEN}✔ %b${NC}\n" "$MSG_UPDATE_ALL_GH_UPTODATE"
     fi
 
     echo -e "${BLUE}---------------------------------------${NC}"
     if [ "$gh_check_failed" -eq 1 ]; then
-        printf "${YELLOW}⚠ Update check incomplete: at least one GitHub package could not be verified.\\n${NC}" >&2
+        printf "${YELLOW}⚠ Update check incomplete: at least one GitHub package could not be verified.\n${NC}" >&2
     elif [ "$apt_count" -gt 0 ] || [ "${#gh_upgrades[@]}" -gt 0 ]; then
         printf "${YELLOW}★ %b${NC}\n" "$(printf "$MSG_UPDATE_SUMMARY_TOTAL" "$apt_count" "${#gh_upgrades[@]}")"
         printf "${GRAY}%b${NC}\n" "$MSG_UPDATE_APPLY_HINT"
