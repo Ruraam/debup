@@ -85,6 +85,15 @@ jobs:
           [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Architecture)" == "all" ]]
           dpkg-deb --contents "$work_dir/debup-ci.deb" >/dev/null
 
+          sudo apt-get install -y curl jq
+          sudo apt-get install -y "$work_dir/debup-ci.deb"
+          grep -Fxq 'debup|https://github.com/Ruraam/debup' /etc/debup/sources.list
+          printf 'preserve this user file\n' | sudo tee /etc/debup/custom.conf >/dev/null
+          sudo apt-get purge -y debup
+          [[ -f /etc/debup/custom.conf ]]
+          sudo rm -f /etc/debup/custom.conf
+          sudo rmdir /etc/debup
+
       - name: Check required hardening guards
         shell: bash
         run: |
