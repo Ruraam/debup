@@ -821,7 +821,34 @@ debup_search() {
     local github_search_failed=false
     if raw_results=$(fetch_github_api "search/repositories?q=${gh_query}&sort=stars&order=desc&per_page=10" 10); then
         if jq -e 'type == "object" and (.items | type == "array")' >/dev/null 2>&1 <<< "$raw_results"; then
-            while IFS=
+            while IFS="$(printf '\\011')" read -r repo stars desc; do
+                [ -n "$repo" ] || continue
+                repo_key=$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')
+                [ -n "${seen_repos[$repo_key]+present}" ] && continue
+                seen_repos[$repo_key]=1
+                candidate_repos+=("$repo")
+                candidate_stars+=("$stars")
+                candidate_descs+=("$desc")
+            done < <(jq -r '.items[]? | select(.full_name | type == "string") | [.full_name, (.stargazers_count // 0 | tostring), (.description // "")] | @tsv' <<< "$raw_results")
+        else
+            github_search_failed=true
+        fi
+    else
+        github_search_failed=true
+    fi
+
+    if [ "${#candidate_repos[@]}" -eq 0 ]; then
+        if [ "$github_search_failed" = true ]; then
+            echo -e " ${YELLOW}GitHub search is currently unavailable.${NC}"
+        else
+            printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
+        fi
+    else
+        if [ "$github_search_failed" = true ]; then
+            echo -e " ${YELLOW}GitHub search API unavailable; checking curated entries only.${NC}"
+        fi
+        echo -e "${GRAY}${MSG_VERIFYING_DEBS}${NC}"
+
         local gh_valid=0
         local candidate_index=0
         local check_release deb_assets has_deb candidate_repo candidate_stars_value candidate_desc
@@ -831,7 +858,6 @@ debup_search() {
             candidate_desc="${candidate_descs[$candidate_index]}"
             candidate_index=$((candidate_index + 1))
 
-            local check_release=""
             if ! check_release=$(fetch_github_api "repos/${candidate_repo}/releases/latest" 10); then
                 continue
             fi
@@ -1572,29 +1598,3 @@ esac\t' read -r repo stars desc; do
             }
 
             local deb_assets
-            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$release_data")
-
-            if [ -z "$deb_assets" ]; then
-                echo -e "${RED}${MSG_ERR_NO_DEB_IN_RELEASE}${NC}"
-                continue
-            fi
-
-            local matching_deb
-            matching_deb=$(filter_compatible_debs "$deb_assets")
-
-            if [ -z "$matching_deb" ]; then
-                printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_WARN_NO_ARCH_MATCH" "$ARCH")"
-                local force_install=""
-                prompt_read force_install "$MSG_PROMPT_FORCE_INSTALL" || force_install="n"
-                if [[ ! "$force_install" =~ ^[oOyYsSjJ]$ ]]; then
-                    echo -e "${CYAN}${MSG_INSTALL_CANCELED}${NC}"
-                    continue
-                fi
-            fi
-
-            echo -e "${GREEN}${MSG_COMPAT_PKG_DETECTED}${NC}"
-            check_and_update "$selected_repo" "" false
-        fi
-    done
-}
-debup_info() {
