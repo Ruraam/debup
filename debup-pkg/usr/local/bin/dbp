@@ -46,7 +46,7 @@ fi
 
 PACKAGE_VALIDATION_HELPER="${SCRIPT_DIR}/../share/debup/package_validation.sh"
 if [ ! -r "$PACKAGE_VALIDATION_HELPER" ]; then
-    printf 'Required package validation helper is missing: %s\\n' "$PACKAGE_VALIDATION_HELPER" >&2
+    printf 'Required package validation helper is missing: %s\n' "$PACKAGE_VALIDATION_HELPER" >&2
     exit 1
 fi
 # shellcheck source=/dev/null
@@ -54,7 +54,7 @@ source "$PACKAGE_VALIDATION_HELPER"
 
 API_CACHE_HELPER="${SCRIPT_DIR}/../share/debup/api_cache.sh"
 if [ ! -r "$API_CACHE_HELPER" ]; then
-    printf 'Required API cache helper is missing: %s\\n' "$API_CACHE_HELPER" >&2
+    printf 'Required API cache helper is missing: %s\n' "$API_CACHE_HELPER" >&2
     exit 1
 fi
 # shellcheck source=/dev/null
