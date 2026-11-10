@@ -17,8 +17,8 @@ Architecture: all
 Maintainer: Test Fixture <test@example.invalid>
 Description: Minimal package used by debup validation tests
 EOF
-printf 'fixture\n' > "$TEST_DIR/root/fixture.txt"
-dpkg-deb --build "$TEST_DIR" "$TEST_DIR/valid.deb" >/dev/null
+printf 'fixture\n' > "$TEST_DIR/pkg/usr/share/debup-validation/fixture.txt"
+dpkg-deb --build "$TEST_DIR/pkg" "$TEST_DIR/valid.deb" >/dev/null
 
 validate_deb_metadata "$TEST_DIR/valid.deb" "$(dpkg --print-architecture)" "debup-validation-fixture"
 [[ "$DEB_VALIDATED_PACKAGE" == "debup-validation-fixture" ]]
@@ -58,6 +58,12 @@ fi
 printf '%s  another.deb\n' "$hash" > "$TEST_DIR/wrong-name.SHA256SUMS"
 if verify_deb_sha256 "$TEST_DIR/manifest.deb" "$TEST_DIR/wrong-name.SHA256SUMS" "package.deb" 2>/dev/null; then
     printf 'FAIL: checksum for a different filename was accepted\n' >&2
+    exit 1
+fi
+
+printf '%s  another.deb\n%s\n' "$hash" "$hash" > "$TEST_DIR/mixed-bare.SHA256SUMS"
+if verify_deb_sha256 "$TEST_DIR/manifest.deb" "$TEST_DIR/mixed-bare.SHA256SUMS" "package.deb" 2>/dev/null; then
+    printf 'FAIL: bare digest in a multi-entry manifest was accepted\n' >&2
     exit 1
 fi
 
