@@ -28,9 +28,15 @@ fetch_github_api() {
 
     cache_root="${CACHE_API_DIR:-}"
     if [[ "${DRY_RUN:-false}" != "true" && -n "$cache_root" ]]; then
-        if install -d -m 700 -- "$cache_root" && chmod 700 -- "$cache_root" &&
-           [[ -d "$cache_root" && ! -L "$cache_root" && -O "$cache_root" ]]; then
+        if [[ -d "$cache_root" && ! -L "$cache_root" && -O "$cache_root" ]]; then
+            if chmod 700 -- "$cache_root"; then
+                cache_enabled=true
+            fi
+        elif [[ ! -e "$cache_root" ]] && install -d -m 700 -- "$cache_root" &&
+             [[ -d "$cache_root" && ! -L "$cache_root" && -O "$cache_root" ]]; then
             cache_enabled=true
+        fi
+        if [[ "$cache_enabled" == true ]]; then
             cache_key=$(printf '%s' "$endpoint" | sha256sum) || return 1
             cache_key="${cache_key%% *}"
             cache_file="${cache_root}/${cache_key}.json"
