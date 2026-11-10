@@ -669,11 +669,21 @@ check_and_update() {
     if [ -n "$checksum_url" ]; then
         echo -e "${BLUE}::${NC} ${CYAN}${MSG_VERIFYING_CHECKSUM}${NC}"
         local tmp_hash_file="$TEMP_DIR/checksums.txt"
-            if ! download_file_atomic "$checksum_url" "$tmp_hash_file" 30 false; then
+        if ! download_file_atomic "$checksum_url" "$tmp_hash_file" 30 false; then
             echo -e "${RED}✖ Published checksum asset could not be downloaded; refusing installation.${NC}" >&2
             rm -f -- "$tmp_deb" "$tmp_hash_file"
             return 1
         fi
+        if ! verify_deb_sha256 "$tmp_deb" "$tmp_hash_file" "$deb_filename"; then
+            echo -e "${RED}✖ Published checksum verification failed; refusing installation.${NC}" >&2
+            rm -f -- "$tmp_deb" "$tmp_hash_file"
+            return 1
+        fi
+        echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
+        rm -f -- "$tmp_hash_file"
+    else
+        echo -e "${YELLOW}ℹ No checksum asset published by this release; proceeding without publisher checksum.${NC}"
+    fi
 
     if [ "$ASSUME_YES" != "true" ]; then
         local check_scripts=()
