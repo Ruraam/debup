@@ -75,6 +75,23 @@ if validate_deb_metadata "$TEST_DIR/not-a-deb" "$(dpkg --print-architecture)" 2>
     exit 1
 fi
 
+if ! deb_version_matches_release_floor "1.2.3-1" "1.2.3"; then
+    printf 'FAIL: Debian revision above release tag was rejected\\n' >&2
+    exit 1
+fi
+if deb_version_matches_release_floor "1.2.2-1" "1.2.3"; then
+    printf 'FAIL: package version older than release tag was accepted\\n' >&2
+    exit 1
+fi
+if ! deb_version_is_not_newer "1.2.3-1" "1.2.3-1"; then
+    printf 'FAIL: identical installed package version was not detected\\n' >&2
+    exit 1
+fi
+if deb_version_is_not_newer "1.2.4-1" "1.2.3-1"; then
+    printf 'FAIL: newer package version was incorrectly marked stale\\n' >&2
+    exit 1
+fi
+
 if apt_plan_has_removals "Inst safe-package (1.0 Debian:stable)"; then
     printf 'FAIL: safe APT transaction was flagged as removing packages\n' >&2
     exit 1
