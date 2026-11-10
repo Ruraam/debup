@@ -677,6 +677,13 @@ check_and_update() {
     local deb_arch="$DEB_VALIDATED_ARCHITECTURE"
     local deb_pkg="$DEB_VALIDATED_PACKAGE"
 
+    if ! deb_version_matches_release_floor "$DEB_VALIDATED_VERSION" "$remote_ver"; then
+        printf "${RED}Downloaded package version %s is older than the GitHub release tag %s; refusing installation.\\n${NC}" \
+            "$DEB_VALIDATED_VERSION" "$latest_tag" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+
     if [ -n "$checksum_url" ]; then
         echo -e "${BLUE}::${NC} ${CYAN}${MSG_VERIFYING_CHECKSUM}${NC}"
         local tmp_hash_file="$TEMP_DIR/checksums.txt"
@@ -711,7 +718,7 @@ check_and_update() {
     local installed_package_version=""
     if installed_package_version=$(dpkg-query -W -f='${Version}' "$deb_pkg" 2>/dev/null) &&
        [ -n "$installed_package_version" ] &&
-       dpkg --compare-versions "$DEB_VALIDATED_VERSION" le "$installed_package_version"; then
+       deb_version_is_not_newer "$DEB_VALIDATED_VERSION" "$installed_package_version"; then
         printf "${GREEN}Package %s is already installed at version %s; downloaded version %s is not newer.\n${NC}" \
             "$deb_pkg" "$installed_package_version" "$DEB_VALIDATED_VERSION"
         rm -f -- "$tmp_deb"
