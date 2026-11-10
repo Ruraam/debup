@@ -427,7 +427,7 @@ debup_inspect() {
     mkdir -p "$inspect_dir"
 
     echo -e "${GRAY}${MSG_INSPECT_DOWNLOADING}${NC}"
-    if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 -o "$tmp_deb" "$deb_url"; then
+    if ! download_file_atomic "$deb_url" "$tmp_deb" 300 false; then
         echo -e "${BLUE}---------------------------------------${NC}"
         echo -e "${RED}${MSG_ERR_INSPECT_DL}${NC}"
         return 1
@@ -651,10 +651,10 @@ check_and_update() {
 
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${YELLOW}%b${NC} ${GRAY}%s${NC}\n" "$(printf "$MSG_DOWNLOADING" "")" "${deb_url}"
-    if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 --progress-bar -o "$tmp_deb" "$deb_url"; then
+    if ! download_file_atomic "$deb_url" "$tmp_deb" 300 true; then
         echo -e "${BLUE}---------------------------------------${NC}"
-        echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\n"
-        rm -f "$tmp_deb"
+        echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\\n"
+        rm -f -- "$tmp_deb"
         return 1
     fi
 
@@ -669,21 +669,11 @@ check_and_update() {
     if [ -n "$checksum_url" ]; then
         echo -e "${BLUE}::${NC} ${CYAN}${MSG_VERIFYING_CHECKSUM}${NC}"
         local tmp_hash_file="$TEMP_DIR/checksums.txt"
-        if ! curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 -o "$tmp_hash_file" "$checksum_url"; then
+            if ! download_file_atomic "$checksum_url" "$tmp_hash_file" 30 false; then
             echo -e "${RED}✖ Published checksum asset could not be downloaded; refusing installation.${NC}" >&2
             rm -f -- "$tmp_deb" "$tmp_hash_file"
             return 1
         fi
-        if ! verify_deb_sha256 "$tmp_deb" "$tmp_hash_file" "$deb_filename"; then
-            echo -e "${RED}✖ Published checksum verification failed; refusing installation.${NC}" >&2
-            rm -f -- "$tmp_deb" "$tmp_hash_file"
-            return 1
-        fi
-        echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
-        rm -f -- "$tmp_hash_file"
-    else
-        echo -e "${YELLOW}ℹ No checksum asset published by this release; proceeding without publisher checksum.${NC}"
-    fi
 
     if [ "$ASSUME_YES" != "true" ]; then
         local check_scripts=()
