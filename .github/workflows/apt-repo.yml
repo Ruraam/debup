@@ -42,8 +42,12 @@ jobs:
 
           for attempt in $(seq 1 12); do
             rm -f debs/*.deb
-            if gh release download "$RELEASE_TAG" --pattern "*.deb" --dir debs/ --clobber; then
-              if find debs -maxdepth 1 -type f -name '*.deb' -print -quit | grep -q .; then
+            if gh release download "$RELEASE_TAG" --pattern "*.deb" --pattern "SHA256SUMS" --dir debs/ --clobber; then
+              if [[ -s debs/SHA256SUMS ]] && find debs -maxdepth 1 -type f -name '*.deb' -print -quit | grep -q .; then
+                (
+                  cd debs
+                  sha256sum --check --strict SHA256SUMS
+                )
                 break
               fi
             fi
