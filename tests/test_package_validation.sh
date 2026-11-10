@@ -30,8 +30,11 @@ if validate_deb_metadata "$TEST_DIR/valid.deb" "$(dpkg --print-architecture)" "w
     exit 1
 fi
 
-if validate_deb_metadata "$TEST_DIR/valid.deb" "definitely-not-this-architecture" 2>/dev/null; then
-    printf 'FAIL: architecture mismatch was accepted\n' >&2
+sed 's/^Architecture: all$/Architecture: amd64/' "$TEST_DIR/pkg/DEBIAN/control" > "$TEST_DIR/pkg/DEBIAN/control.tmp"
+mv "$TEST_DIR/pkg/DEBIAN/control.tmp" "$TEST_DIR/pkg/DEBIAN/control"
+dpkg-deb --build "$TEST_DIR/pkg" "$TEST_DIR/wrong-architecture.deb" >/dev/null 2>&1
+if validate_deb_metadata "$TEST_DIR/wrong-architecture.deb" "definitely-not-this-architecture" 2>/dev/null; then
+    printf 'FAIL: architecture mismatch was accepted\\n' >&2
     exit 1
 fi
 
