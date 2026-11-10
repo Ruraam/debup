@@ -11,6 +11,7 @@ on:
       - "tests/test_sync_catalog.sh"
       - "tests/test_search.sh"
       - "tests/test_package_validation.sh"
+      - "tests/test_api_cache.sh"
       - "curated_db.txt"
       - "debup-pkg/usr/local/share/debup/**"
       - ".github/workflows/sync-catalog.yml"
@@ -59,6 +60,8 @@ jobs:
           bash -n tests/test_sync_catalog.sh
           bash -n tests/test_search.sh
           bash -n tests/test_package_validation.sh
+          bash -n tests/test_api_cache.sh
+          bash -n debup-pkg/usr/local/share/debup/api_cache.sh
           bash -n debup-pkg/usr/local/share/debup/search.sh
           bash -n debup-pkg/usr/local/share/debup/package_validation.sh
           bash -n tests/test_package_scripts.sh
@@ -74,6 +77,8 @@ jobs:
           shellcheck --severity=error tests/test_sync_catalog.sh
           shellcheck --severity=error tests/test_search.sh
           shellcheck --severity=error tests/test_package_validation.sh
+          shellcheck --severity=error tests/test_api_cache.sh
+          shellcheck --severity=error debup-pkg/usr/local/share/debup/api_cache.sh
           shellcheck --severity=error debup-pkg/usr/local/share/debup/search.sh
           shellcheck --severity=error debup-pkg/usr/local/share/debup/package_validation.sh
           shellcheck --severity=error tests/test_package_scripts.sh
@@ -87,6 +92,9 @@ jobs:
 
       - name: Test package metadata and checksum validation
         run: bash tests/test_package_validation.sh
+
+      - name: Test GitHub API cache failure handling
+        run: bash tests/test_api_cache.sh
 
       - name: Test curated search catalog
         run: bash tests/test_search.sh
