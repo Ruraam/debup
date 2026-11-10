@@ -7,6 +7,22 @@ DEB_VALIDATED_PACKAGE=""
 DEB_VALIDATED_VERSION=""
 DEB_VALIDATED_ARCHITECTURE=""
 
+deb_version_is_not_newer() {
+    local candidate_version="$1"
+    local installed_version="$2"
+    dpkg --compare-versions "$candidate_version" le "$installed_version"
+}
+
+deb_version_matches_release_floor() {
+    local package_version="$1"
+    local release_version="$2"
+
+    if ! dpkg --validate-version "$release_version" >/dev/null 2>&1; then
+        return 0
+    fi
+    dpkg --compare-versions "$package_version" ge "$release_version"
+}
+
 apt_plan_has_removals() {
     local plan="$1"
     awk '$1 == "Remv" || $1 == "Purg" { found = 1 } END { exit !found }' <<< "$plan"
