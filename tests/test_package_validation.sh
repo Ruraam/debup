@@ -87,8 +87,8 @@ while (($#)); do
     esac
 done
 [[ -n "$output" ]] || exit 2
-printf '%s' "\${CURL_BODY:-downloaded-content}" > "$output"
-exit "\${CURL_EXIT:-0}"
+printf '%s' "${CURL_BODY:-downloaded-content}" > "$output"
+exit "${CURL_EXIT:-0}"
 CURL
 chmod +x "$TEST_DIR/bin/curl"
 PATH="$TEST_DIR/bin:$PATH"
@@ -111,7 +111,7 @@ fi
 [[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
 shopt -s nullglob
 staging=("$TEST_DIR"/atomic.deb.part.*)
-[[ "\${#staging[@]}" -eq 0 ]]
+[[ "${#staging[@]}" -eq 0 ]]
 
 CURL_BODY=''
 CURL_EXIT=0
