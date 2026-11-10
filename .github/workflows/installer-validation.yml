@@ -9,6 +9,10 @@ on:
       - "installer.sh"
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
+      - "tests/test_search.sh"
+      - "curated_db.txt"
+      - "debup-pkg/usr/local/share/debup/**"
+      - ".github/workflows/sync-catalog.yml"
       - "tests/test_package_scripts.sh"
       - "debup-pkg/DEBIAN/**"
       - "debup-pkg/usr/local/bin/**"
@@ -48,6 +52,8 @@ jobs:
           bash -n installer.sh
           bash -n scripts/sync_catalog.sh
           bash -n tests/test_sync_catalog.sh
+          bash -n tests/test_search.sh
+          bash -n debup-pkg/usr/local/share/debup/search.sh
           bash -n tests/test_package_scripts.sh
           bash -n debup-pkg/DEBIAN/postinst
           bash -n debup-pkg/DEBIAN/postrm
@@ -59,12 +65,17 @@ jobs:
           shellcheck --severity=error installer.sh
           shellcheck --severity=error scripts/sync_catalog.sh
           shellcheck --severity=error tests/test_sync_catalog.sh
+          shellcheck --severity=error tests/test_search.sh
+          shellcheck --severity=error debup-pkg/usr/local/share/debup/search.sh
           shellcheck --severity=error tests/test_package_scripts.sh
           shellcheck --severity=error debup-pkg/DEBIAN/postinst
           shellcheck --severity=error debup-pkg/DEBIAN/postrm
           shellcheck --severity=error debup-pkg/usr/local/bin/debup
           shellcheck --severity=error debup-pkg/usr/local/bin/dbp
           cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+      - name: Test curated search catalog
+        run: bash tests/test_search.sh
 
       - name: Test catalog synchronization
         run: bash tests/test_sync_catalog.sh
@@ -84,6 +95,8 @@ jobs:
           [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Package)" == "debup" ]]
           [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Architecture)" == "all" ]]
           dpkg-deb --contents "$work_dir/debup-ci.deb" >/dev/null
+          cmp -s curated_db.txt debup-pkg/usr/local/share/debup/curated_db.txt
+          dpkg-deb --fsys-tarfile "$work_dir/debup-ci.deb" | tar -tf - | grep -Fxq "./usr/local/share/debup/curated_db.txt"
 
           sudo apt-get install -y curl jq
           sudo apt-get install -y "$work_dir/debup-ci.deb"
