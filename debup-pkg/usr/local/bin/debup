@@ -1278,18 +1278,34 @@ debup_stats() {
 
 debup_clean() {
     echo -e "${BLUE}---------------------------------------${NC}"
-    printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "${MSG_CLEANING_CACHE:-Cleaning APT cache and temporary files...}"
+    printf "${BLUE}::${NC} ${CYAN}%b${NC}\\n" "${MSG_CLEANING_CACHE:-Cleaning APT cache and temporary files...}"
 
     if [ "$DRY_RUN" = "true" ]; then
-        printf "${YELLOW}%b${NC}\n" "${MSG_DRY_CLEAN:-Dry run: APT and API caches would be cleaned.}"
+        printf "${YELLOW}%b${NC}\\n" "${MSG_DRY_CLEAN:-Dry run: APT and API caches would be cleaned.}"
         echo -e "${BLUE}---------------------------------------${NC}"
         return 0
     fi
 
-    $ELEVATE apt-get clean
-    $ELEVATE apt-get autoclean -y >/dev/null 2>&1
+    local clean_failed=0
+    if ! $ELEVATE apt-get clean; then
+        echo -e "${YELLOW}⚠ APT clean failed.${NC}" >&2
+        clean_failed=1
+    fi
+    if ! $ELEVATE apt-get autoclean -y; then
+        echo -e "${YELLOW}⚠ APT autoclean failed.${NC}" >&2
+        clean_failed=1
+    fi
 
-    rm -rf "${CACHE_API_DIR:?}"/* >/dev/null 2>&1
+    if [ -d "$CACHE_API_DIR" ] &&
+       ! find "$CACHE_API_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; then
+        echo -e "${YELLOW}⚠ GitHub API cache cleanup failed.${NC}" >&2
+        clean_failed=1
+    fi
+
+    if [ "$clean_failed" -eq 1 ]; then
+        echo -e "${RED}✖ Cleanup completed with errors; review the warnings above.${NC}" >&2
+        return 1
+    fi
 
     echo -e "${GREEN}✔ ${MSG_CLEAN_SUCCESS}${NC}"
     echo -e "${BLUE}---------------------------------------${NC}"
