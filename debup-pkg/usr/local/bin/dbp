@@ -44,6 +44,14 @@ if [ -f "$SEARCH_HELPER" ]; then
     source "$SEARCH_HELPER"
 fi
 
+PACKAGE_VALIDATION_HELPER="${SCRIPT_DIR}/../share/debup/package_validation.sh"
+if [ ! -r "$PACKAGE_VALIDATION_HELPER" ]; then
+    printf 'Required package validation helper is missing: %s\\n' "$PACKAGE_VALIDATION_HELPER" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$PACKAGE_VALIDATION_HELPER"
+
 CONF_DIR="/etc/debup"
 SOURCES_FILE="${CONF_DIR}/sources.list"
 
@@ -167,7 +175,7 @@ else
 fi
 
 missing=0
-for cmd in curl jq dpkg dpkg-deb apt-get apt-cache apt-mark; do
+for cmd in curl jq dpkg dpkg-deb apt-get apt-cache apt-mark sha256sum awk; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         printf "${RED}%s : '%s' %s${NC}\n" "${MSG_ERR_PREFIX:-Error}" "$cmd" "${MSG_CMD_REQUIRED_SUFFIX:-is required.}" >&2
         missing=1
@@ -563,19 +571,50 @@ check_and_update() {
     chosen_deb=$(echo "$compat_debs" | grep -i "$DISTRO_PREF" | head -n1)
     [ -z "$chosen_deb" ] && chosen_deb=$(echo "$compat_debs" | head -n1)
 
-    local deb_url
-    deb_url=$(echo "$release_json" | jq -r --arg name "$chosen_deb" '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
-
-    if [ -z "$deb_url" ]; then
-        echo -e "${BLUE}---------------------------------------${NC}"
-        printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_NO_COMPAT_DEB" "$ARCH")"
+    if [[ "$chosen_deb" == */* || "$chosen_deb" == "." || "$chosen_deb" == ".." ]]; then
+        echo -e "${RED}✖ Invalid Debian asset filename returned by GitHub.${NC}" >&2
         return 1
     fi
 
-    local checksum_url
-    checksum_url=$(echo "$release_json" | jq -r --arg n "$chosen_deb" '.assets[] | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum")) | .browser_download_url' | head -n1)
-    if [ -z "$checksum_url" ]; then
-        checksum_url=$(echo "$release_json" | jq -r '.assets[] | select(.name | test("(?i)(sha256.*sums?|checksums?.*txt|.*\\.sha256$)")) | .browser_download_url' 2>/dev/null | head -n1)
+    local deb_urls deb_url_count deb_url
+    deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+        echo -e "${RED}✖ Unable to parse the selected Debian asset URL.${NC}" >&2
+        return 1
+    }
+    deb_url_count=$(printf '%s\\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
+    if [ "$deb_url_count" -ne 1 ]; then
+        echo -e "${RED}✖ The selected Debian asset does not have exactly one download URL.${NC}" >&2
+        return 1
+    fi
+    deb_url="$deb_urls"
+    if [[ ! "$deb_url" =~ ^https://[^[:space:]]+$ ]]; then
+        echo -e "${RED}✖ The selected Debian asset has an invalid download URL.${NC}" >&2
+        return 1
+    fi
+
+    local checksum_assets checksum_url checksum_count
+    checksum_assets=$(jq -r --arg n "$chosen_deb" '[.assets[] | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum")) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+        echo -e "${RED}✖ Unable to parse checksum asset metadata.${NC}" >&2
+        return 1
+    }
+    checksum_count=$(printf '%s\\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+
+    if [ "$checksum_count" -eq 0 ]; then
+        checksum_assets=$(jq -r '[.assets[] | select(.name | test("^(SHA256SUMS|sha256sums|checksums\\.txt)$"; "i")) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+            echo -e "${RED}✖ Unable to parse checksum manifest metadata.${NC}" >&2
+            return 1
+        }
+        checksum_count=$(printf '%s\\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+    fi
+
+    if [ "$checksum_count" -gt 1 ]; then
+        echo -e "${RED}✖ Multiple checksum assets are ambiguous for this release.${NC}" >&2
+        return 1
+    fi
+    checksum_url="$checksum_assets"
+    if [ -n "$checksum_url" ] && [[ ! "$checksum_url" =~ ^https://[^[:space:]]+$ ]]; then
+        echo -e "${RED}✖ The checksum asset has an invalid download URL.${NC}" >&2
+        return 1
     fi
 
     if [ "$DRY_RUN" = "true" ]; then
@@ -613,52 +652,31 @@ check_and_update() {
         return 1
     fi
 
-    local deb_arch deb_pkg
-    deb_arch=$(dpkg-deb -f "$tmp_deb" Architecture 2>/dev/null || true)
-    deb_pkg=$(dpkg-deb -f "$tmp_deb" Package 2>/dev/null || true)
-
-    if [[ "$deb_arch" != "$ARCH" && "$deb_arch" != "all" ]]; then
-        echo -e "${BLUE}---------------------------------------${NC}"
-        echo -e "${RED}✖ Architecture du paquet ($deb_arch) incompatible avec le système ($ARCH).${NC}\n"
-        rm -f "$tmp_deb"
+    if ! validate_deb_metadata "$tmp_deb" "$ARCH" "$PKG_NAME"; then
+        echo -e "${RED}✖ Downloaded Debian package failed metadata validation; installation aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
         return 1
     fi
+    local deb_arch="$DEB_VALIDATED_ARCHITECTURE"
+    local deb_pkg="$DEB_VALIDATED_PACKAGE"
 
-    if [ -n "$PKG_NAME" ] && [ -n "$deb_pkg" ] && [ "$deb_pkg" != "$PKG_NAME" ]; then
-        echo -e "${YELLOW}⚠ Avertissement : le paquet interne s'appelle '$deb_pkg' (attendu : '$PKG_NAME').${NC}"
-    fi
-
-    if [ -n "$checksum_url" ] && [ "$checksum_url" != "null" ]; then
+    if [ -n "$checksum_url" ]; then
         echo -e "${BLUE}::${NC} ${CYAN}${MSG_VERIFYING_CHECKSUM}${NC}"
         local tmp_hash_file="$TEMP_DIR/checksums.txt"
-        if curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 -o "$tmp_hash_file" "$checksum_url"; then
-            local real_hash
-            real_hash=$(sha256sum "$tmp_deb" | awk '{print $1}')
-
-            local expected_hash
-            expected_hash=$(grep -F "$deb_filename" "$tmp_hash_file" 2>/dev/null | awk '{print $1}')
-
-            if [ -z "$expected_hash" ] && [ "$(wc -w < "$tmp_hash_file" 2>/dev/null)" -eq 1 ]; then
-                expected_hash=$(tr -d '[:space:]' < "$tmp_hash_file")
-            fi
-
-            if [ -n "$expected_hash" ]; then
-                if [ "$real_hash" = "$expected_hash" ]; then
-                    echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
-                else
-                    echo -e "${BLUE}---------------------------------------${NC}"
-                    echo -e "${RED}✖ ${MSG_ERR_CHECKSUM_FAILED}${NC}"
-                    echo -e "${GRAY}Expected: ${expected_hash}${NC}"
-                    echo -e "${GRAY}Got:      ${real_hash}${NC}"
-                    rm -f "$tmp_deb"
-                    return 1
-                fi
-            else
-                echo -e "${YELLOW}⚠ Aucun hash trouvé pour $deb_filename dans le fichier de sommes.${NC}"
-            fi
+        if ! curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 -o "$tmp_hash_file" "$checksum_url"; then
+            echo -e "${RED}✖ Published checksum asset could not be downloaded; refusing installation.${NC}" >&2
+            rm -f -- "$tmp_deb" "$tmp_hash_file"
+            return 1
         fi
+        if ! verify_deb_sha256 "$tmp_deb" "$tmp_hash_file" "$deb_filename"; then
+            echo -e "${RED}✖ Published checksum verification failed; refusing installation.${NC}" >&2
+            rm -f -- "$tmp_deb" "$tmp_hash_file"
+            return 1
+        fi
+        echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
+        rm -f -- "$tmp_hash_file"
     else
-        echo -e "${GRAY}ℹ ${MSG_NO_CHECKSUM_FOUND}${NC}"
+        echo -e "${YELLOW}ℹ No checksum asset published by this release; proceeding without publisher checksum.${NC}"
     fi
 
     if [ "$ASSUME_YES" != "true" ]; then
