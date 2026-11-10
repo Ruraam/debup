@@ -703,7 +703,7 @@ check_and_update() {
         return 1
     fi
     if grep -Fxq -- "$deb_pkg" <<< "$held_packages"; then
-        printf "${YELLOW}Package %s is held; refusing to change its version.\\n${NC}" "$deb_pkg" >&2
+        printf "${YELLOW}Package %s is held; refusing to change its version.\n${NC}" "$deb_pkg" >&2
         rm -f -- "$tmp_deb"
         return 2
     fi
@@ -712,7 +712,7 @@ check_and_update() {
     if installed_package_version=$(dpkg-query -W -f='${Version}' "$deb_pkg" 2>/dev/null) &&
        [ -n "$installed_package_version" ] &&
        dpkg --compare-versions "$DEB_VALIDATED_VERSION" le "$installed_package_version"; then
-        printf "${GREEN}Package %s is already installed at version %s; downloaded version %s is not newer.\\n${NC}" \
+        printf "${GREEN}Package %s is already installed at version %s; downloaded version %s is not newer.\n${NC}" \
             "$deb_pkg" "$installed_package_version" "$DEB_VALIDATED_VERSION"
         rm -f -- "$tmp_deb"
         return 2
