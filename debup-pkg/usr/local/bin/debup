@@ -185,7 +185,7 @@ else
 fi
 
 missing=0
-for cmd in curl jq dpkg dpkg-deb apt-get apt-cache apt-mark sha256sum awk; do
+for cmd in curl jq dpkg dpkg-deb apt apt-get apt-cache apt-mark sha256sum awk; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         printf "${RED}%s : '%s' %s${NC}\n" "${MSG_ERR_PREFIX:-Error}" "$cmd" "${MSG_CMD_REQUIRED_SUFFIX:-is required.}" >&2
         missing=1
@@ -1126,16 +1126,26 @@ debup_info() {
 debup_check_updates() {
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPDATE_SYNCING_APT"
+    local apt_sync_failed=0
     if [ "$DRY_RUN" = "true" ]; then
-        printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_UPDATE")"
-    else
-        run_apt_styled update
+        printf "${YELLOW}%b${NC}\\n" "$(printf "$MSG_DRY_APT_UPDATE")"
+    elif ! run_apt_styled update; then
+        printf "${YELLOW}⚠ APT index refresh failed; native package update status is unknown.\\n${NC}" >&2
+        apt_sync_failed=1
     fi
 
-    local apt_upgradable
-    apt_upgradable=$(LC_ALL=C apt list --upgradable 2>/dev/null | grep -v "^Listing\.\.\.")
+    local apt_upgradable=""
     local apt_count=0
-    [ -n "$apt_upgradable" ] && apt_count=$(echo "$apt_upgradable" | grep -c '/' || true)
+    if [ "$apt_sync_failed" -eq 0 ]; then
+        local apt_list_output
+        if apt_list_output=$(LC_ALL=C apt list --upgradable 2>/dev/null); then
+            apt_upgradable=$(printf '%s\\n' "$apt_list_output" | grep -v "^Listing\\.\\.\\." || true)
+            [ -n "$apt_upgradable" ] && apt_count=$(printf '%s\\n' "$apt_upgradable" | grep -c '/' || true)
+        else
+            printf "${YELLOW}⚠ Unable to read the APT upgrade list; native package update status is unknown.\\n${NC}" >&2
+            apt_sync_failed=1
+        fi
+    fi
 
     echo -e ""
     printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPDATE_CHECKING_GH"
@@ -1143,6 +1153,9 @@ debup_check_updates() {
         echo -e "${GRAY}  ${MSG_NO_TRACKED_PACKAGES}${NC}"
         echo -e "${BLUE}---------------------------------------${NC}"
         [ "$apt_count" -gt 0 ] && printf "${YELLOW}ℹ %b${NC}\n" "$(printf "$MSG_UPDATE_APT_AVAIL_HINT" "$apt_count")"
+        if [ "$apt_sync_failed" -eq 1 ]; then
+            return 1
+        fi
         return 0
     fi
 
@@ -1196,14 +1209,18 @@ debup_check_updates() {
     fi
 
     echo -e "${BLUE}---------------------------------------${NC}"
-    if [ "$gh_check_failed" -eq 1 ]; then
-        printf "${YELLOW}⚠ Update check incomplete: at least one GitHub package could not be verified.\n${NC}" >&2
+    if [ "$gh_check_failed" -eq 1 ] || [ "$apt_sync_failed" -eq 1 ]; then
+        printf "${YELLOW}⚠ Update check incomplete: at least one package source could not be verified.\n${NC}" >&2
     elif [ "$apt_count" -gt 0 ] || [ "${#gh_upgrades[@]}" -gt 0 ]; then
         printf "${YELLOW}★ %b${NC}\n" "$(printf "$MSG_UPDATE_SUMMARY_TOTAL" "$apt_count" "${#gh_upgrades[@]}")"
         printf "${GRAY}%b${NC}\n" "$MSG_UPDATE_APPLY_HINT"
     else
         printf "${GREEN}✔ %b${NC}\n" "$MSG_UPDATE_SYSTEM_UPTODATE"
     fi
+    if [ "$gh_check_failed" -eq 1 ] || [ "$apt_sync_failed" -eq 1 ]; then
+        return 1
+    fi
+
 }
 
 debup_stats() {
