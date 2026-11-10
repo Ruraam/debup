@@ -278,7 +278,7 @@ find_checksum_url() {
 # ==========================================================
 ensure_debup_tracked() {
     local sources_file="/etc/debup/sources.list"
-    local entry="debup|https://github.com/Ruraam/debup"
+    local entry="debup|Ruraam/debup"
 
     if [ ! -f "$sources_file" ]; then
         $SUDO mkdir -p /etc/debup
