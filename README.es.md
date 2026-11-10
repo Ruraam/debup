@@ -99,7 +99,19 @@ Instalación fácil con el <a href="https://github.com/Ruraam/debup#-installatio
 
 #### 🧪 Modo simulación Dry-Run [-d / --dry-run]:
 
-• Simula descargas, actualizaciones, operaciones en repositorios, fijaciones y desfijaciones en cualquier comando sin realizar cambios reales en el sistema de archivos o el estado de APT.
+• Previsualiza descargas, actualizaciones, operaciones en repositorios, bloqueos, desbloqueos y limpieza sin instalar/eliminar paquetes ni cambiar el estado de APT.
+
+• Se pueden realizar solicitudes de solo lectura a GitHub, pero el modo de simulación no escribe en la caché API persistente ni en la configuración del token. Los archivos temporales se limpian automáticamente.
+
+• Para los paquetes de GitHub, el modo de simulación muestra la release seleccionada y la acción prevista. No descarga el paquete, por lo que no puede simular completamente la resolución de dependencias de APT.
+
+### 🛡️ Seguridad de transacciones APT
+
+• Antes de instalar un paquete de GitHub descargado, debup simula la transacción APT y rechaza cualquier plan que elimine o purgue paquetes instalados.
+
+• La instalación real también utiliza la protección APT `--no-remove`.
+
+• La versión del paquete Debian descargado se compara con la etiqueta de la release (si es una versión Debian válida) y con la versión instalada. No se instalan versiones iguales o anteriores.
 
 #### ⚡ Seguimiento & caché API de alto rendimiento [dbp -t]:
 
