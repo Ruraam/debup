@@ -7,6 +7,46 @@ DEB_VALIDATED_PACKAGE=""
 DEB_VALIDATED_VERSION=""
 DEB_VALIDATED_ARCHITECTURE=""
 
+download_file_atomic() {
+    local url="$1"
+    local destination="$2"
+    local timeout="${3:-300}"
+    local show_progress="${4:-false}"
+    local staging_file
+    local -a curl_args=(-fsSL --connect-timeout 10 --max-time "$timeout" --retry 2 --retry-delay 1)
+
+    [[ "$url" =~ ^https://[^[:space:]]+$ && -n "$destination" ]] || {
+        printf 'Invalid HTTPS download URL or destination.\\n' >&2
+        return 1
+    }
+    [[ "$timeout" =~ ^[0-9]+$ && "$timeout" -gt 0 ]] || {
+        printf 'Download timeout must be a positive integer.\\n' >&2
+        return 1
+    }
+
+    staging_file=$(mktemp "${destination}.part.XXXXXX") || {
+        printf 'Unable to create a staging file for the download.\\n' >&2
+        return 1
+    }
+    [[ "$show_progress" == true ]] && curl_args+=(--progress-bar)
+
+    if ! curl "${curl_args[@]}" -o "$staging_file" "$url"; then
+        rm -f -- "$staging_file"
+        printf 'Download failed; the destination was not replaced.\\n' >&2
+        return 1
+    fi
+    if [[ ! -s "$staging_file" ]]; then
+        rm -f -- "$staging_file"
+        printf 'Download returned an empty file; the destination was not replaced.\\n' >&2
+        return 1
+    fi
+    if ! mv -f -- "$staging_file" "$destination"; then
+        rm -f -- "$staging_file"
+        printf 'Unable to atomically publish the downloaded file.\\n' >&2
+        return 1
+    fi
+}
+
 validate_deb_metadata() {
     local deb_file="$1"
     local expected_arch="$2"
