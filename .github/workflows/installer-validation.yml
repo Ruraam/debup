@@ -8,6 +8,7 @@ on:
     paths:
       - "installer.sh"
       - "scripts/sync_catalog.sh"
+      - "tests/test_sync_catalog.sh"
       - ".github/workflows/installer-validation.yml"
   pull_request:
     paths:
@@ -39,6 +40,10 @@ jobs:
         run: |
           shellcheck --severity=error installer.sh
           shellcheck --severity=error scripts/sync_catalog.sh
+          shellcheck --severity=error tests/test_sync_catalog.sh
+
+      - name: Test catalog synchronization
+        run: bash tests/test_sync_catalog.sh
 
       - name: Check required hardening guards
         shell: bash
