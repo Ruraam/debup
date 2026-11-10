@@ -13,7 +13,7 @@ download_file_atomic() {
     local timeout="${3:-300}"
     local show_progress="${4:-false}"
     local staging_file
-    local -a curl_args=(-fsSL --connect-timeout 10 --max-time "$timeout" --retry 2 --retry-delay 1)
+    local -a curl_args=(-fsSL --proto '=https' --proto-redir '=https' --max-redirs 10 --connect-timeout 10 --max-time "$timeout" --retry 2 --retry-delay 1)
 
     [[ "$url" =~ ^https://[^[:space:]]+$ && -n "$destination" ]] || {
         printf 'Invalid HTTPS download URL or destination.\n' >&2
