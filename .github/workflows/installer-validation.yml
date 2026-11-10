@@ -10,6 +10,7 @@ on:
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
       - "tests/test_search.sh"
+      - "tests/test_package_validation.sh"
       - "curated_db.txt"
       - "debup-pkg/usr/local/share/debup/**"
       - ".github/workflows/sync-catalog.yml"
@@ -57,7 +58,9 @@ jobs:
           bash -n scripts/sync_catalog.sh
           bash -n tests/test_sync_catalog.sh
           bash -n tests/test_search.sh
+          bash -n tests/test_package_validation.sh
           bash -n debup-pkg/usr/local/share/debup/search.sh
+          bash -n debup-pkg/usr/local/share/debup/package_validation.sh
           bash -n tests/test_package_scripts.sh
           bash -n debup-pkg/DEBIAN/postinst
           bash -n debup-pkg/DEBIAN/postrm
@@ -70,13 +73,18 @@ jobs:
           shellcheck --severity=error scripts/sync_catalog.sh
           shellcheck --severity=error tests/test_sync_catalog.sh
           shellcheck --severity=error tests/test_search.sh
+          shellcheck --severity=error tests/test_package_validation.sh
           shellcheck --severity=error debup-pkg/usr/local/share/debup/search.sh
+          shellcheck --severity=error debup-pkg/usr/local/share/debup/package_validation.sh
           shellcheck --severity=error tests/test_package_scripts.sh
           shellcheck --severity=error debup-pkg/DEBIAN/postinst
           shellcheck --severity=error debup-pkg/DEBIAN/postrm
           shellcheck --severity=error debup-pkg/usr/local/bin/debup
           shellcheck --severity=error debup-pkg/usr/local/bin/dbp
           cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+      - name: Test package metadata and checksum validation
+        run: bash tests/test_package_validation.sh
 
       - name: Test curated search catalog
         run: bash tests/test_search.sh
