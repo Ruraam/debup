@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-deb:
@@ -132,3 +133,11 @@ jobs:
           files: |
             debup_*.deb
             SHA256SUMS
+
+      - name: Trigger APT repository publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -Eeuo pipefail
+          gh workflow run apt-repo.yml --ref main -f "release_tag=$RELEASE_TAG"
