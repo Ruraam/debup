@@ -99,7 +99,19 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 
 #### 🧪 Dry-Run Simulation Mode [-d / --dry-run]:
 
-• Simulate downloads, upgrades, repository operations, pins, and unpins across any command without making any actual changes to the file system or APT state.
+• Preview downloads, upgrades, repository operations, pins, unpins, and cleanup without installing/removing packages or changing APT state.
+
+• Read-only GitHub API requests may still be performed, but dry-run does not write the persistent API cache or token configuration. Temporary files are cleaned up automatically.
+
+• GitHub package dry-runs show the selected release and intended install action. They do not download the package, so they cannot fully simulate APT dependency resolution.
+
+### 🛡️ APT Transaction Safety
+
+• Before installing a downloaded GitHub package, debup simulates the APT transaction and rejects plans that would remove or purge installed packages.
+
+• The real installation uses APT's `--no-remove` safeguard as a second line of defense.
+
+• The downloaded Debian version is checked against the release tag (when it is a valid Debian version) and the currently installed version. Older or identical package versions are not installed.
 
 #### ⚡ High-Rate API Tracking & Caching [dbp -t]:
 
