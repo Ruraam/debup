@@ -35,8 +35,8 @@ validate_deb_metadata() {
         printf 'Invalid Debian package name in downloaded archive.\n' >&2
         return 1
     }
-    [[ -n "$version" && "$version" != *[$'\n\r']* ]] || {
-        printf 'Invalid or missing Debian package version.\n' >&2
+    [[ -n "$version" && "$version" != *[$'\\n\\r']* ]] && dpkg --validate-version "$version" >/dev/null 2>&1 || {
+        printf 'Invalid or missing Debian package version.\\n' >&2
         return 1
     }
     [[ "$architecture" == "all" || "$architecture" =~ ^[a-z0-9][a-z0-9-]*$ ]] || {
