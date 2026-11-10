@@ -7,6 +7,11 @@ DEB_VALIDATED_PACKAGE=""
 DEB_VALIDATED_VERSION=""
 DEB_VALIDATED_ARCHITECTURE=""
 
+apt_plan_has_removals() {
+    local plan="$1"
+    awk '$1 == "Remv" || $1 == "Purg" { found = 1 } END { exit !found }' <<< "$plan"
+}
+
 download_file_atomic() {
     local url="$1"
     local destination="$2"
