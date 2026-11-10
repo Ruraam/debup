@@ -72,38 +72,46 @@ verify_deb_sha256() {
         function valid_hash(value) {
             return value ~ /^[[:xdigit:]]{64}$/
         }
-        NF == 1 && valid_hash($1) {
-            bare_count++
-            bare_hash = tolower($1)
+        NF == 1 {
+            records++
+            if (valid_hash($1)) {
+                bare_count++
+                bare_hash = tolower($1)
+            }
             next
         }
         NF >= 2 {
+            records++
             hash = $1
             file = $2
-            sub(/^\*/, "", file)
-            sub(/^\.\//, "", file)
+            sub(/^\\*/, "", file)
+            sub(/^\\.\\//, "", file)
             n = split(file, parts, "/")
-            if (parts[n] == wanted && valid_hash(hash)) {
-                matches++
-                selected = tolower(hash)
+            if (parts[n] == wanted) {
+                if (valid_hash(hash)) {
+                    matches++
+                    selected = tolower(hash)
+                } else {
+                    invalid_matches++
+                }
             }
         }
         END {
-            if (matches == 1) {
+            if (matches == 1 && invalid_matches == 0) {
                 print selected
                 exit 0
             }
-            if (matches > 1) {
+            if (matches > 1 || invalid_matches > 0) {
                 exit 2
             }
-            if (bare_count == 1) {
+            if (records == 1 && bare_count == 1) {
                 print bare_hash
                 exit 0
             }
             exit 1
         }
     ' "$manifest") || {
-        printf 'Checksum manifest has no unique valid SHA-256 entry for %s.\n' "$expected_name" >&2
+        printf 'Checksum manifest has no unique valid SHA-256 entry for %s.\\n' "$expected_name" >&2
         return 1
     }
 
