@@ -7,6 +7,7 @@ on:
       - "hardening/**"
     paths:
       - "installer.sh"
+      - "scripts/sync_catalog.sh"
       - ".github/workflows/installer-validation.yml"
   pull_request:
     paths:
