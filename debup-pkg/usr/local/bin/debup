@@ -1415,12 +1415,27 @@ case "$1" in
 
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPGRADE_APT_TITLE"
+        local apt_upgrade_failed=0
         if [ "$DRY_RUN" = "true" ]; then
             printf "${YELLOW}%b${NC}\n" "$MSG_DRY_APT_UPGRADE"
         else
-            apt_args=("dist-upgrade")
-            [ "$ASSUME_YES" = "true" ] && apt_args+=("-y")
-            run_apt_styled "${apt_args[@]}"
+            local apt_upgrade_plan
+            if ! apt_upgrade_plan=$($ELEVATE env LC_ALL=C apt-get --simulate dist-upgrade 2>&1); then
+                echo -e "${RED}✖ APT could not simulate the system upgrade; no APT changes were made.${NC}" >&2
+                printf '%s\n' "$apt_upgrade_plan" >&2
+                apt_upgrade_failed=1
+            elif apt_plan_has_removals "$apt_upgrade_plan"; then
+                echo -e "${RED}✖ APT system upgrade would remove or purge installed packages; refusing the transaction.${NC}" >&2
+                printf '%s\n' "$apt_upgrade_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+                apt_upgrade_failed=1
+            else
+                apt_args=(--no-remove dist-upgrade)
+                [ "$ASSUME_YES" = "true" ] && apt_args+=("-y")
+                if ! run_apt_styled "${apt_args[@]}"; then
+                    echo -e "${RED}✖ APT system upgrade failed.${NC}" >&2
+                    apt_upgrade_failed=1
+                fi
+            fi
         fi
 
         echo -e ""
@@ -1429,11 +1444,15 @@ case "$1" in
 
         if [ ! -f "$SOURCES_FILE" ] || [ ! -s "$SOURCES_FILE" ]; then
             echo -e "${YELLOW}${MSG_NO_TRACKED_PACKAGES}${NC}"
+            if [ "$apt_upgrade_failed" -eq 1 ]; then
+                exit 1
+            fi
             exit 0
         fi
 
         updated_count=0
         total_count=0
+        failed_count=0
 
         while IFS='|' read -u 3 -r pkg repo || [ -n "$pkg" ]; do
             [[ "$pkg" =~ ^#.* ]] && continue
@@ -1445,11 +1464,15 @@ case "$1" in
 
             if [ "$status" -eq 0 ]; then
                 updated_count=$((updated_count + 1))
+            elif [ "$status" -eq 1 ]; then
+                failed_count=$((failed_count + 1))
             fi
         done 3< "$SOURCES_FILE"
 
         echo -e "${BLUE}---------------------------------------${NC}"
-        if [ "$updated_count" -gt 0 ]; then
+        if [ "$failed_count" -gt 0 ]; then
+            printf "${YELLOW}⚠ %d tracked GitHub package(s) could not be updated or verified.\n${NC}" "$failed_count" >&2
+        elif [ "$updated_count" -gt 0 ]; then
             if [ "$DRY_RUN" = "true" ]; then
                 printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_UPGRADE_SUMMARY" "$updated_count" "$total_count")"
             else
@@ -1458,7 +1481,9 @@ case "$1" in
         else
             printf "${GREEN}%b${NC}\n" "$(printf "$MSG_ALL_UP_TO_DATE" "$total_count")"
         fi
-        echo -e "${BLUE}---------------------------------------${NC}"
+        if [ "$apt_upgrade_failed" -eq 1 ] || [ "$failed_count" -gt 0 ]; then
+            exit 1
+        fi
         ;;
 
     list|-l)
