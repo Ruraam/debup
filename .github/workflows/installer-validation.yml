@@ -145,3 +145,10 @@ jobs:
           grep -Fq 'atomically replace the catalog' scripts/sync_catalog.sh
           ! grep -Fq '/tmp/deb-get-repo' scripts/sync_catalog.sh
           ! grep -Fq '/tmp/deb-get.csv' scripts/sync_catalog.sh
+          grep -Fq 'apt-get --simulate install' debup-pkg/usr/local/bin/debup
+          grep -Fq 'apt-get --no-remove install -y' debup-pkg/usr/local/bin/debup
+          grep -Fq 'deb_version_matches_release_floor' debup-pkg/usr/local/bin/debup
+          grep -Fq 'deb_version_is_not_newer' debup-pkg/usr/local/bin/debup
+          grep -Fq 'Dry run: the GitHub token would be stored securely' debup-pkg/usr/local/bin/debup
+          grep -Fq 'stale cached data will not be used' debup-pkg/usr/local/share/debup/api_cache.sh
+          grep -Fq -- '--proto-redir' debup-pkg/usr/local/share/debup/package_validation.sh
