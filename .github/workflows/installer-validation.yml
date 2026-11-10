@@ -30,10 +30,14 @@ jobs:
           sudo apt-get install -y shellcheck
 
       - name: Validate Bash syntax
-        run: bash -n installer.sh
+        run: |
+          bash -n installer.sh
+          bash -n scripts/sync_catalog.sh
 
       - name: Run ShellCheck
-        run: shellcheck --severity=error installer.sh
+        run: |
+          shellcheck --severity=error installer.sh
+          shellcheck --severity=error scripts/sync_catalog.sh
 
       - name: Check required hardening guards
         shell: bash
@@ -45,3 +49,7 @@ jobs:
           grep -Fq 'Unable to determine the system architecture' installer.sh
           grep -Fq 'APT package index update failed' installer.sh
           grep -Fq 'Failed to set executable permissions' installer.sh
+          grep -Fq 'mktemp -d' scripts/sync_catalog.sh
+          grep -Fq 'atomically replace the catalog' scripts/sync_catalog.sh
+          ! grep -Fq '/tmp/deb-get-repo' scripts/sync_catalog.sh
+          ! grep -Fq '/tmp/deb-get.csv' scripts/sync_catalog.sh
