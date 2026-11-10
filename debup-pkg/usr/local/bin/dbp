@@ -713,7 +713,7 @@ check_and_update() {
                 echo -e "${RED}✖ Failed to read the existing source list.${NC}" >&2
                 return 1
             fi
-            if ! printf '%s|%s\n' "$PKG_NAME" "$REPO_URL" >> "$tmp_sources"; then
+            if ! printf '%s|%s\n' "$PKG_NAME" "$repo_path" >> "$tmp_sources"; then
                 rm -f -- "$tmp_sources"
                 echo -e "${RED}✖ Failed to stage the package tracking entry.${NC}" >&2
                 return 1
