@@ -81,7 +81,9 @@ jobs:
           shellcheck --severity=error debup-pkg/DEBIAN/postrm
           shellcheck --severity=error debup-pkg/usr/local/bin/debup
           shellcheck --severity=error debup-pkg/usr/local/bin/dbp
-          cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+      - name: Verify debup and dbp are identical
+        run: cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
 
       - name: Test package metadata and checksum validation
         run: bash tests/test_package_validation.sh
