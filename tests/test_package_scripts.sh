@@ -21,7 +21,7 @@ debup|Ruraam/debup
 SOURCES
 
 "$SCRIPT_DIR/postinst" configure
-expected=$'other-app|https://github.com/vendor/other-app\ndebup|https://github.com/Ruraam/debup'
+expected=$'other-app|https://github.com/vendor/other-app\ndebup|Ruraam/debup'
 [[ "$(cat "$ETC_DIR/sources.list")" == "$expected" ]] || {
     printf 'FAIL: postinst did not migrate the source list correctly.\n' >&2
     exit 1
