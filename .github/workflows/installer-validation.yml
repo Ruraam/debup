@@ -20,6 +20,7 @@ on:
       - "installer.sh"
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
+      - "tests/test_package_scripts.sh"
       - "debup-pkg/DEBIAN/**"
       - "debup-pkg/usr/local/bin/**"
       - ".github/workflows/apt-repo.yml"
