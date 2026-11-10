@@ -9,6 +9,7 @@ on:
       - "installer.sh"
       - "scripts/sync_catalog.sh"
       - "tests/test_sync_catalog.sh"
+      - "tests/test_package_scripts.sh"
       - "debup-pkg/DEBIAN/**"
       - "debup-pkg/usr/local/bin/**"
       - ".github/workflows/apt-repo.yml"
@@ -46,6 +47,7 @@ jobs:
           bash -n installer.sh
           bash -n scripts/sync_catalog.sh
           bash -n tests/test_sync_catalog.sh
+          bash -n tests/test_package_scripts.sh
           bash -n debup-pkg/DEBIAN/postinst
           bash -n debup-pkg/DEBIAN/postrm
 
@@ -54,11 +56,15 @@ jobs:
           shellcheck --severity=error installer.sh
           shellcheck --severity=error scripts/sync_catalog.sh
           shellcheck --severity=error tests/test_sync_catalog.sh
+          shellcheck --severity=error tests/test_package_scripts.sh
           shellcheck --severity=error debup-pkg/DEBIAN/postinst
           shellcheck --severity=error debup-pkg/DEBIAN/postrm
 
       - name: Test catalog synchronization
         run: bash tests/test_sync_catalog.sh
+
+      - name: Test Debian maintainer scripts
+        run: bash tests/test_package_scripts.sh
 
       - name: Build and inspect Debian package
         shell: bash
