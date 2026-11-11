@@ -92,6 +92,22 @@ if deb_version_is_not_newer "1.2.4-1" "1.2.3-1"; then
     exit 1
 fi
 
+asset_list=$'tool_amd64.deb\ntool_ubuntu_amd64.deb\ntool_debian_amd64.deb'
+selected_asset="$(select_compatible_deb_asset "$asset_list" "debian")"
+[[ "$selected_asset" == "tool_debian_amd64.deb" ]] || {
+    printf 'FAIL: distro-preferred compatible asset was not selected\n' >&2
+    exit 1
+}
+selected_asset="$(select_compatible_deb_asset "$asset_list" "fedora")"
+[[ "$selected_asset" == "tool_amd64.deb" ]] || {
+    printf 'FAIL: compatible fallback asset was not selected deterministically\n' >&2
+    exit 1
+}
+if select_compatible_deb_asset $'../escape_amd64.deb\nsafe_amd64.deb' "debian" >/dev/null 2>&1; then
+    printf 'FAIL: unsafe asset filename was accepted\n' >&2
+    exit 1
+fi
+
 if apt_plan_has_removals "Inst safe-package (1.0 Debian:stable)"; then
     printf 'FAIL: safe APT transaction was flagged as removing packages\n' >&2
     exit 1
