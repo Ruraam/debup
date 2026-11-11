@@ -142,6 +142,10 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 * **Distro Prioritization:** Prefers distro-specific builds (`debian` vs `ubuntu`) when multiple compatible packages are published.
 * **Safe Fallback:** Cleanly aborts with an explicit warning if no compatible package exists for your CPU architecture.
 
+• Search binds each GitHub result to the exact release ID and compatible `.deb` asset shown in the selection list. Installation revalidates that same release and asset instead of silently resolving a newer `latest` release.
+
+• The curated catalog contains only GitHub release sources that debup can validate and track. Direct-download recipes are excluded until they have a complete integrity and update-tracking path.
+
 ---
 
 ## 📦 Installation
