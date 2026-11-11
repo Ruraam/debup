@@ -59,6 +59,10 @@ Instalación fácil con el <a href="https://github.com/Ruraam/debup#-installatio
 
 • Prompt interactivo de selección múltiple compatible con rangos y listas separadas por comas (ej. 1 2 3, 1-3, 1,2,4) para instalaciones por lotes rápidas.
 
+• Cada resultado de GitHub conserva el ID exacto de su release y el nombre del `.deb` compatible mostrado. La instalación vuelve a validar esa misma release y ese mismo asset en lugar de resolver silenciosamente otra release `latest`.
+
+• El catálogo integrado solo incluye fuentes GitHub Releases que debup puede validar y rastrear. Se excluyen las descargas directas hasta que su integridad y seguimiento de actualizaciones estén completamente implementados.
+
 #### 📦 Instalación directa [dbp -i <owner/repo> / dbp -i <paquete>]:
 
 • Ya no necesitas rastrear URLs de release. Apunta a cualquier repositorio, y debup detecta, empareja tu arquitectura (amd64 / arm64), descarga e instala el .deb correcto.
