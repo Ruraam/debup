@@ -7,6 +7,26 @@ DEB_VALIDATED_PACKAGE=""
 DEB_VALIDATED_VERSION=""
 DEB_VALIDATED_ARCHITECTURE=""
 
+select_compatible_deb_asset() {
+    local assets="$1"
+    local distro_pref="${2,,}"
+    local asset first_asset=""
+
+    while IFS= read -r asset; do
+        [[ -n "$asset" ]] || continue
+        [[ "$asset" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*\.deb$ && "$asset" != *".."* ]] || continue
+
+        [[ -n "$first_asset" ]] || first_asset="$asset"
+        if [[ -n "$distro_pref" && "${asset,,}" == *"$distro_pref"* ]]; then
+            printf '%s\n' "$asset"
+            return 0
+        fi
+    done <<< "$assets"
+
+    [[ -n "$first_asset" ]] || return 1
+    printf '%s\n' "$first_asset"
+}
+
 deb_version_is_not_newer() {
     local candidate_version="$1"
     local installed_version="$2"
