@@ -103,10 +103,11 @@ selected_asset="$(select_compatible_deb_asset "$asset_list" "fedora")"
     printf 'FAIL: compatible fallback asset was not selected deterministically\n' >&2
     exit 1
 }
-if select_compatible_deb_asset $'../escape_amd64.deb\nsafe_amd64.deb' "debian" >/dev/null 2>&1; then
-    printf 'FAIL: unsafe asset filename was accepted\n' >&2
+selected_asset="$(select_compatible_deb_asset $'../escape_amd64.deb\nsafe_amd64.deb' "debian")"
+[[ "$selected_asset" == "safe_amd64.deb" ]] || {
+    printf 'FAIL: unsafe asset filename was not filtered before selection\n' >&2
     exit 1
-fi
+}
 
 if apt_plan_has_removals "Inst safe-package (1.0 Debian:stable)"; then
     printf 'FAIL: safe APT transaction was flagged as removing packages\n' >&2
