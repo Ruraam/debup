@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-ROOT_DIR="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")/.." && pwd -P)"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 # shellcheck source=../debup-pkg/usr/local/share/debup/package_validation.sh
-source "\${ROOT_DIR}/debup-pkg/usr/local/share/debup/package_validation.sh"
+source "${ROOT_DIR}/debup-pkg/usr/local/share/debup/package_validation.sh"
 
 TEST_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_DIR"' EXIT
@@ -152,8 +152,8 @@ while (($#)); do
     esac
 done
 [[ -n "$output" ]] || exit 2
-printf '%s' "\${CURL_BODY-downloaded-content}" > "$output"
-exit "\${CURL_EXIT:-0}"
+printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
+exit "${CURL_EXIT:-0}"
 CURL
 chmod +x "$TEST_DIR/bin/curl"
 PATH="$TEST_DIR/bin:$PATH"
@@ -176,7 +176,7 @@ fi
 [[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
 shopt -s nullglob
 staging=("$TEST_DIR"/atomic.deb.part.*)
-[[ "\${#staging[@]}" -eq 0 ]]
+[[ "${#staging[@]}" -eq 0 ]]
 
 CURL_BODY=''
 CURL_EXIT=0
