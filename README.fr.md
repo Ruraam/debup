@@ -59,6 +59,10 @@ L'ergonomie d'AUR vous manque sur Debian/Ubuntu ? **debup** transforme les GitHu
 
 • Prompt interactif multi-sélection supportant les plages et les listes séparées par des virgules (ex. 1 2 3, 1-3, 1,2,4) pour des installations groupées rapides.
 
+• Chaque résultat GitHub conserve l'identifiant exact de sa release et le nom du `.deb` compatible affiché. L'installation revalide cette même release et ce même asset au lieu de résoudre silencieusement une nouvelle release `latest`.
+
+• Le catalogue intégré ne contient que des sources GitHub Releases que debup sait valider et suivre. Les téléchargements directs sont exclus tant que leur intégrité et leur suivi des mises à jour ne sont pas entièrement pris en charge.
+
 #### 📦 Installation directe [dbp -i <owner/repo> / dbp -i <paquet>]:
 
 • Plus besoin de chercher les URLs de release. Pointez vers n'importe quel dépôt, debup détecte, associe votre architecture (amd64 / arm64), télécharge et installe le bon .deb.
