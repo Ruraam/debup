@@ -45,4 +45,31 @@ actual="$(catalog_search_repositories "${TEST_DIR}/missing.txt" "alpha")"
     exit 1
 }
 
-printf 'PASS: curated catalog matching, validation, deduplication, and missing-file handling\n'
+actual="$(parse_search_selection '1 3-4,2 1' 5)"
+expected=$'1\n3\n4\n2'
+[[ "$actual" == "$expected" ]] || {
+    printf 'FAIL: selection order, range expansion, or deduplication failed\nExpected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+    exit 1
+}
+
+actual="$(parse_search_selection '0002,08 10' 10)"
+expected=$'2\n8\n10'
+[[ "$actual" == "$expected" ]] || {
+    printf 'FAIL: leading-zero decimal indices were not parsed safely\n' >&2
+    exit 1
+}
+
+for invalid in '1,11' '1,invalid' '0' '3-2' '1-999999999999999999999999999' ',1' '1,' '1,,2' '1 - 2'; do
+    if parse_search_selection "$invalid" 10 >/dev/null 2>&1; then
+        printf 'FAIL: invalid selection was accepted: %s\n' "$invalid" >&2
+        exit 1
+    fi
+done
+
+if parse_search_selection '   ' 10 >/dev/null 2>&1; then
+    printf 'FAIL: empty selection parser input was accepted\n' >&2
+    exit 1
+fi
+
+printf 'PASS: curated lookup and strict ordered multi-selection parsing
+'
