@@ -1469,25 +1469,17 @@ case "$1" in
         echo -e "${BLUE}---------------------------------------${NC}"
         [ -z "$TARGET" ] && { echo -e "${YELLOW}${MSG_USAGE_ADD}${NC}"; exit 1; }
 
-        if [[ "$TARGET" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(@.+)?$ ]] || [[ "$TARGET" =~ github\.com ]]; then
+        if [[ "$TARGET" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(@.+)?$ ]] || [[ "$TARGET" =~ github\\.com ]]; then
             check_and_update "$TARGET" "" "$ASSUME_YES"
         else
-            printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${TARGET}${NC}${CYAN}")"
-            if [ "$DRY_RUN" = "true" ]; then
-                printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_INSTALL" "$TARGET")"
-            else
-                apt_args=("install")
-                [ "$ASSUME_YES" = "true" ] && apt_args+=("-y")
-                apt_args+=("$TARGET")
-
-                if run_apt_styled "${apt_args[@]}"; then
-                    echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-Paquet APT %s installé.}" "${TARGET}")"
-                else
-                    echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
-                fi
+            printf "${BLUE}::${NC} ${CYAN}%b${NC}\\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${TARGET}${NC}${CYAN}")"
+            if ! install_apt_package "$TARGET" "$ASSUME_YES"; then
+                echo -e "${BLUE}---------------------------------------${NC}"
+                printf "${RED}✖ %b${NC}\\n\\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
+                exit 1
             fi
+            echo -e "${BLUE}---------------------------------------${NC}"
+            printf "${GREEN}✔ %b${NC}\\n\\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-APT package %s installed.}" "${TARGET}")"
         fi
         ;;
 
