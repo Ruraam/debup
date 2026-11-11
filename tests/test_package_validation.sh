@@ -92,7 +92,107 @@ if deb_version_is_not_newer "1.2.4-1" "1.2.3-1"; then
     exit 1
 fi
 
-asset_list=$'tool_amd64.deb\ntool_ubuntu_amd64.deb\ntool_debian_amd64.deb'
+valid_release='{"id":123,"tag_name":"v1.2.3","assets":[{"name":"tool_amd64.deb","browser_download_url":"https://github.com/acme/tool/releases/download/v1.2.3/tool_amd64.deb"}]}'
+validate_release_asset_selection "$valid_release" "123" "tool_amd64.deb"
+if validate_release_asset_selection "$valid_release" "124" "tool_amd64.deb"; then
+    printf 'FAIL: mismatched GitHub release ID was accepted\n' >&2
+    exit 1
+fi
+duplicate_asset='{"id":123,"tag_name":"v1.2.3","assets":[{"name":"tool_amd64.deb","browser_download_url":"https://github.com/acme/tool/releases/download/a/tool_amd64.deb"},{"name":"tool_amd64.deb","browser_download_url":"https://github.com/acme/tool/releases/download/b/tool_amd64.deb"}]}'
+if validate_release_asset_selection "$duplicate_asset" "123" "tool_amd64.deb"; then
+    printf 'FAIL: duplicate GitHub asset names were accepted\n' >&2
+    exit 1
+fi
+external_asset='{"id":123,"tag_name":"v1.2.3","assets":[{"name":"tool_amd64.deb","browser_download_url":"https://attacker.invalid/tool_amd64.deb"}]}'
+if validate_release_asset_selection "$external_asset" "123" "tool_amd64.deb"; then
+    printf 'FAIL: non-GitHub browser download URL was accepted\n' >&2
+    exit 1
+fi
+unsafe_tag='{"id":123,"tag_name":"v1.2.3\u001b[31m","assets":[{"name":"tool_amd64.deb","browser_download_url":"https://github.com/acme/tool/releases/download/v1.2.3/tool_amd64.deb"}]}'
+if validate_release_asset_selection "$unsafe_tag" "123" "tool_amd64.deb"; then
+    printf 'FAIL: terminal-control release tag was accepted\n' >&2
+    exit 1
+fi
+
+asset_list=selected_asset="$(select_compatible_deb_asset "$asset_list" "debian")"
+[[ "$selected_asset" == "tool_debian_amd64.deb" ]] || {
+    printf 'FAIL: distro-preferred compatible asset was not selected\n' >&2
+    exit 1
+}
+selected_asset="$(select_compatible_deb_asset "$asset_list" "fedora")"
+[[ "$selected_asset" == "tool_amd64.deb" ]] || {
+    printf 'FAIL: compatible fallback asset was not selected deterministically\n' >&2
+    exit 1
+}
+selected_asset="$(select_compatible_deb_asset $'../escape_amd64.deb\nsafe_amd64.deb' "debian")"
+[[ "$selected_asset" == "safe_amd64.deb" ]] || {
+    printf 'FAIL: unsafe asset filename was not filtered before selection\n' >&2
+    exit 1
+}
+
+if apt_plan_has_removals "Inst safe-package (1.0 Debian:stable)"; then
+    printf 'FAIL: safe APT transaction was flagged as removing packages\n' >&2
+    exit 1
+fi
+if ! apt_plan_has_removals $'Inst replacement (2.0 Debian:stable)\nRemv conflicting-package [1.0]'; then
+    printf 'FAIL: APT transaction package removal was not detected\n' >&2
+    exit 1
+fi
+
+mkdir -p "$TEST_DIR/bin"
+cat > "$TEST_DIR/bin/curl" <<'CURL'
+#!/usr/bin/env bash
+set -u
+output=""
+while (($#)); do
+    case "$1" in
+        -o) output="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+[[ -n "$output" ]] || exit 2
+printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
+exit "${CURL_EXIT:-0}"
+CURL
+chmod +x "$TEST_DIR/bin/curl"
+PATH="$TEST_DIR/bin:$PATH"
+export PATH
+
+printf 'old-content' > "$TEST_DIR/atomic.deb"
+CURL_BODY='complete-new-content'
+CURL_EXIT=0
+export CURL_BODY CURL_EXIT
+download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false
+[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
+
+CURL_BODY='partial-content'
+CURL_EXIT=22
+export CURL_BODY CURL_EXIT
+if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
+    printf 'FAIL: failed download was reported as successful\n' >&2
+    exit 1
+fi
+[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
+shopt -s nullglob
+staging=("$TEST_DIR"/atomic.deb.part.*)
+[[ "${#staging[@]}" -eq 0 ]]
+
+CURL_BODY=''
+CURL_EXIT=0
+export CURL_BODY CURL_EXIT
+if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
+    printf 'FAIL: empty download was accepted\n' >&2
+    exit 1
+fi
+[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
+
+if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
+    printf 'FAIL: non-HTTPS download URL was accepted\n' >&2
+    exit 1
+fi
+
+printf 'PASS: package metadata, checksums, atomic downloads, and APT transaction validation\n'
+tool_amd64.deb\ntool_ubuntu_amd64.deb\ntool_debian_amd64.deb'
 selected_asset="$(select_compatible_deb_asset "$asset_list" "debian")"
 [[ "$selected_asset" == "tool_debian_amd64.deb" ]] || {
     printf 'FAIL: distro-preferred compatible asset was not selected\n' >&2
