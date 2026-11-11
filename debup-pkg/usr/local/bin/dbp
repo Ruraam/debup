@@ -1480,8 +1480,10 @@ case "$1" in
                 printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
                 exit 1
             fi
-            echo -e "${BLUE}---------------------------------------${NC}"
-            printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-APT package %s installed.}" "${TARGET}")"
+            if [ "$DRY_RUN" != "true" ]; then
+                echo -e "${BLUE}---------------------------------------${NC}"
+                printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-APT package %s installed.}" "${TARGET}")"
+            fi
         fi
         ;;
 
