@@ -429,7 +429,7 @@ debup_info() {
         return 1
     fi
     deb_url="$deb_urls"
-    if [[ ! "$deb_url" =~ ^https://[^[:space:]]+$ ]]; then
+    if [[ ! "$deb_url" =~ ^https://github\.com/[^[:space:]]+$ ]]; then
         echo -e "${RED}✖ The selected Debian asset has an invalid download URL.${NC}" >&2
         return 1
     fi
@@ -701,7 +701,7 @@ check_and_update() {
             return 1
         fi
         checksum_url="$checksum_assets"
-        if [[ ! "$checksum_url" =~ ^https://[^[:space:]]+$ ]]; then
+        if [[ ! "$checksum_url" =~ ^https://github\.com/[^[:space:]]+$ ]]; then
             echo -e "${RED}✖ The checksum asset has an invalid download URL.${NC}" >&2
             return 1
         fi
@@ -1037,7 +1037,7 @@ debup_search() {
             if ! jq -e '
                 type == "object" and
                 (.id | type == "number" and . > 0) and
-                (.tag_name | type == "string" and length > 0) and
+                (.tag_name | type == "string" and length > 0 and (test("[[:cntrl:]]") | not)) and
                 (.assets | type == "array")
             ' >/dev/null 2>&1 <<< "$check_release"; then
                 release_check_failed=$((release_check_failed + 1))
