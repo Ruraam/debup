@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Synchronize the curated package catalog from deb-get recipes.
+# Synchronize the curated GitHub release package catalog from deb-get recipes.
 #
 
 set -Eeuo pipefail
@@ -69,27 +69,10 @@ for recipe in "${recipe_files[@]}"; do
         continue
     fi
 
-    # Recipes requiring external repositories/PPAs are not portable catalog
-    # entries and must not be emitted as direct-download packages.
-    if grep -Eq '^[[:space:]]*(add_ppa|add_apt_repo)([[:space:]]|$)' "$recipe"; then
-        continue
-    fi
+    # Only GitHub release repositories are supported by debup's curated search.
+    # Direct-download recipes are intentionally excluded until they have a
+    # dedicated validation, integrity, and update-tracking implementation.
 
-    direct_url="$(awk '
-        /^[[:space:]]*direct_download[[:space:]]+/ {
-            if (match($0, /direct_download[[:space:]]+"https?:\/\/[^"]+"/)) {
-                value = substr($0, RSTART, RLENGTH)
-                sub(/^[^"]*"/, "", value)
-                sub(/"$/, "", value)
-                print value
-                exit
-            }
-        }
-    ' "$recipe")"
-
-    if [[ "$direct_url" =~ ^https?://[^[:space:]]+$ ]]; then
-        printf '%s|direct|%s\n' "$package_name" "$direct_url" >> "$TMP_CATALOG"
-    fi
 done
 
 if [[ -s "$TMP_CATALOG" ]]; then
@@ -101,16 +84,16 @@ fi
 
 # Validate every generated record before replacing the tracked catalog.
 awk -F'|' '
-    NF != 3 || $1 == "" || ($2 != "github" && $2 != "direct") || $3 == "" {
+    NF != 3 || $1 !~ /^[a-z0-9][a-z0-9+.-]*$/ || $2 != "github" || $3 !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/ {
         exit 1
     }
-    $2 == "github" && $3 !~ /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/ {
+    seen[$1] && seen[$1] != $3 {
         exit 1
     }
-    $2 == "direct" && $3 !~ /^https?:\/\// {
-        exit 1
+    {
+        seen[$1] = $3
     }
-' "$TMP_CATALOG" || die "Generated catalog failed structural validation."
+' "$TMP_CATALOG" || die "Generated catalog failed validation or contains ambiguous package names."
 
 total="$(wc -l < "$TMP_CATALOG")"
 chmod 0644 "$TMP_CATALOG" || die "Failed to set catalog permissions."
