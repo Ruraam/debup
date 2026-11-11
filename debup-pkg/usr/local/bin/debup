@@ -492,6 +492,8 @@ check_and_update() {
     local REPO_URL="$1"
     local PKG_NAME="$2"
     local ASSUME_YES="$3"
+    local EXPECTED_RELEASE_ID="${4:-}"
+    local EXPECTED_ASSET="${5:-}"
 
     if [ -n "$PKG_NAME" ] && apt-mark showhold 2>/dev/null | grep -qx "$PKG_NAME"; then
         printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_PINNED_SKIPPED" "${CYAN}${PKG_NAME}${NC}")"
@@ -508,19 +510,45 @@ check_and_update() {
     fi
 
     if [[ "$REPO_URL" == *"api.github.com"* ]]; then
-        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\.github\.com/repos/##; s#/$##')
+        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\\.github\\.com/repos/##; s#/$##')
     else
-        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\.com/##; s#/$##; s#\.git$##')
+        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\\.com/##; s#/$##; s#\\.git$##')
     fi
 
-    if [ -n "$tag" ]; then
-        api_url="repos/${repo_path}/releases/tags/${tag}"
+    if [[ ! "$repo_path" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+        echo -e "${RED}✖ Invalid GitHub repository identifier.${NC}" >&2
+        return 1
+    fi
+
+    if [[ -n "$EXPECTED_RELEASE_ID" ]]; then
+        if [[ ! "$EXPECTED_RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo -e "${RED}✖ Invalid selected GitHub release identifier.${NC}" >&2
+            return 1
+        fi
+        api_url="repos/${repo_path}/releases/${EXPECTED_RELEASE_ID}"
+    elif [ -n "$tag" ]; then
+        local encoded_tag
+        encoded_tag=$(printf '%s' "$tag" | jq -sRr @uri) || return 1
+        api_url="repos/${repo_path}/releases/tags/${encoded_tag}"
     else
         api_url="repos/${repo_path}/releases/latest"
     fi
 
     local release_json
-    release_json=$(fetch_github_api "$api_url" 30)
+    if ! release_json=$(fetch_github_api "$api_url" 30); then
+        echo -e "${RED}✖ Unable to retrieve the selected GitHub release.${NC}" >&2
+        return 1
+    fi
+    if ! jq -e --arg expected_id "$EXPECTED_RELEASE_ID" '
+        type == "object" and
+        (.tag_name | type == "string" and length > 0) and
+        (.assets | type == "array") and
+        ($expected_id == "" or ((.id | tostring) == $expected_id))
+    ' >/dev/null 2>&1 <<< "$release_json"; then
+        echo -e "${RED}✖ GitHub returned invalid or mismatched release metadata.${NC}" >&2
+        return 1
+    fi
+
 
     local latest_tag
     latest_tag=$(echo "$release_json" | jq -r '.tag_name // empty' 2>/dev/null | tr -d '\r')
@@ -560,24 +588,35 @@ check_and_update() {
     fi
 
     local deb_assets
-    deb_assets=$(echo "$release_json" | jq -r '.assets[]?.name // empty' | grep -iE '\.deb$')
+    deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$release_json")
     local compat_debs
     compat_debs=$(filter_compatible_debs "$deb_assets")
 
     if [ -z "$compat_debs" ]; then
         echo -e "${BLUE}---------------------------------------${NC}"
-        printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_NO_COMPAT_DEB" "$ARCH")"
+        printf "${RED}%b${NC}\\n" "$(printf "$MSG_ERR_NO_COMPAT_DEB" "$ARCH")"
         return 1
     fi
 
     local chosen_deb=""
-    chosen_deb=$(echo "$compat_debs" | grep -i "$DISTRO_PREF" | head -n1)
-    [ -z "$chosen_deb" ] && chosen_deb=$(echo "$compat_debs" | head -n1)
-
-    if [[ "$chosen_deb" == */* || "$chosen_deb" == "." || "$chosen_deb" == ".." ]]; then
-        echo -e "${RED}✖ Invalid Debian asset filename returned by GitHub.${NC}" >&2
-        return 1
+    if [ -n "$EXPECTED_ASSET" ]; then
+        if ! jq -e --arg name "$EXPECTED_ASSET" '[.assets[] | select(.name == $name)] | length == 1' >/dev/null 2>&1 <<< "$release_json"; then
+            echo -e "${RED}✖ The selected asset is missing or ambiguous in the selected release.${NC}" >&2
+            return 1
+        fi
+        if [[ ! "$EXPECTED_ASSET" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*\\.deb$ || "$EXPECTED_ASSET" == *".."* ]] ||
+           ! grep -Fxq -- "$EXPECTED_ASSET" <<< "$compat_debs"; then
+            echo -e "${RED}✖ The selected asset is not a safe, architecture-compatible Debian package.${NC}" >&2
+            return 1
+        fi
+        chosen_deb="$EXPECTED_ASSET"
+    else
+        chosen_deb=$(select_compatible_deb_asset "$compat_debs" "$DISTRO_PREF") || {
+            echo -e "${RED}✖ No safe compatible Debian asset could be selected.${NC}" >&2
+            return 1
+        }
     fi
+
 
     local deb_urls deb_url_count deb_url
     deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
