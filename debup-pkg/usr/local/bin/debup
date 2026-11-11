@@ -421,6 +421,13 @@ debup_info() {
         return 1
     fi
 
+    local release_id
+    release_id=$(jq -r '.id // empty' <<< "$release_json")
+    if ! validate_release_asset_selection "$release_json" "$release_id" "$chosen_deb"; then
+        echo -e "${RED}✖ The selected Debian asset does not belong to a valid, unique GitHub release asset entry.${NC}" >&2
+        return 1
+    fi
+
     local deb_urls deb_url_count deb_url
     deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || return 1
     deb_url_count=$(printf '%s\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
@@ -1049,6 +1056,10 @@ debup_search() {
             deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$check_release")
             compatible_debs=$(filter_compatible_debs "$deb_assets")
             chosen_asset=$(select_compatible_deb_asset "$compatible_debs" "$DISTRO_PREF") || chosen_asset=""
+            if [ -n "$chosen_asset" ] && ! validate_release_asset_selection "$check_release" "$release_id" "$chosen_asset"; then
+                chosen_asset=""
+                release_check_failed=$((release_check_failed + 1))
+            fi
 
             if [ -n "$chosen_asset" ]; then
                 global_targets[display_idx]="$candidate_repo"
