@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+ROOT_DIR="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")/.." && pwd -P)"
 # shellcheck source=../debup-pkg/usr/local/share/debup/package_validation.sh
-source "${ROOT_DIR}/debup-pkg/usr/local/share/debup/package_validation.sh"
+source "\${ROOT_DIR}/debup-pkg/usr/local/share/debup/package_validation.sh"
 
 TEST_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_DIR"' EXIT
@@ -76,19 +76,19 @@ if validate_deb_metadata "$TEST_DIR/not-a-deb" "$(dpkg --print-architecture)" 2>
 fi
 
 if ! deb_version_matches_release_floor "1.2.3-1" "1.2.3"; then
-    printf 'FAIL: Debian revision above release tag was rejected\\n' >&2
+    printf 'FAIL: Debian revision above release tag was rejected\n' >&2
     exit 1
 fi
 if deb_version_matches_release_floor "1.2.2-1" "1.2.3"; then
-    printf 'FAIL: package version older than release tag was accepted\\n' >&2
+    printf 'FAIL: package version older than release tag was accepted\n' >&2
     exit 1
 fi
 if ! deb_version_is_not_newer "1.2.3-1" "1.2.3-1"; then
-    printf 'FAIL: identical installed package version was not detected\\n' >&2
+    printf 'FAIL: identical installed package version was not detected\n' >&2
     exit 1
 fi
 if deb_version_is_not_newer "1.2.4-1" "1.2.3-1"; then
-    printf 'FAIL: newer package version was incorrectly marked stale\\n' >&2
+    printf 'FAIL: newer package version was incorrectly marked stale\n' >&2
     exit 1
 fi
 
@@ -114,85 +114,7 @@ if validate_release_asset_selection "$unsafe_tag" "123" "tool_amd64.deb"; then
     exit 1
 fi
 
-asset_list=selected_asset="$(select_compatible_deb_asset "$asset_list" "debian")"
-[[ "$selected_asset" == "tool_debian_amd64.deb" ]] || {
-    printf 'FAIL: distro-preferred compatible asset was not selected\n' >&2
-    exit 1
-}
-selected_asset="$(select_compatible_deb_asset "$asset_list" "fedora")"
-[[ "$selected_asset" == "tool_amd64.deb" ]] || {
-    printf 'FAIL: compatible fallback asset was not selected deterministically\n' >&2
-    exit 1
-}
-selected_asset="$(select_compatible_deb_asset $'../escape_amd64.deb\nsafe_amd64.deb' "debian")"
-[[ "$selected_asset" == "safe_amd64.deb" ]] || {
-    printf 'FAIL: unsafe asset filename was not filtered before selection\n' >&2
-    exit 1
-}
-
-if apt_plan_has_removals "Inst safe-package (1.0 Debian:stable)"; then
-    printf 'FAIL: safe APT transaction was flagged as removing packages\n' >&2
-    exit 1
-fi
-if ! apt_plan_has_removals $'Inst replacement (2.0 Debian:stable)\nRemv conflicting-package [1.0]'; then
-    printf 'FAIL: APT transaction package removal was not detected\n' >&2
-    exit 1
-fi
-
-mkdir -p "$TEST_DIR/bin"
-cat > "$TEST_DIR/bin/curl" <<'CURL'
-#!/usr/bin/env bash
-set -u
-output=""
-while (($#)); do
-    case "$1" in
-        -o) output="$2"; shift 2 ;;
-        *) shift ;;
-    esac
-done
-[[ -n "$output" ]] || exit 2
-printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
-exit "${CURL_EXIT:-0}"
-CURL
-chmod +x "$TEST_DIR/bin/curl"
-PATH="$TEST_DIR/bin:$PATH"
-export PATH
-
-printf 'old-content' > "$TEST_DIR/atomic.deb"
-CURL_BODY='complete-new-content'
-CURL_EXIT=0
-export CURL_BODY CURL_EXIT
-download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-
-CURL_BODY='partial-content'
-CURL_EXIT=22
-export CURL_BODY CURL_EXIT
-if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: failed download was reported as successful\n' >&2
-    exit 1
-fi
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-shopt -s nullglob
-staging=("$TEST_DIR"/atomic.deb.part.*)
-[[ "${#staging[@]}" -eq 0 ]]
-
-CURL_BODY=''
-CURL_EXIT=0
-export CURL_BODY CURL_EXIT
-if download_file_atomic "https://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: empty download was accepted\n' >&2
-    exit 1
-fi
-[[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
-
-if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.deb" 30 false 2>/dev/null; then
-    printf 'FAIL: non-HTTPS download URL was accepted\n' >&2
-    exit 1
-fi
-
-printf 'PASS: package metadata, checksums, atomic downloads, and APT transaction validation\n'
-tool_amd64.deb\ntool_ubuntu_amd64.deb\ntool_debian_amd64.deb'
+asset_list=$'tool_amd64.deb\ntool_ubuntu_amd64.deb\ntool_debian_amd64.deb'
 selected_asset="$(select_compatible_deb_asset "$asset_list" "debian")"
 [[ "$selected_asset" == "tool_debian_amd64.deb" ]] || {
     printf 'FAIL: distro-preferred compatible asset was not selected\n' >&2
@@ -230,8 +152,8 @@ while (($#)); do
     esac
 done
 [[ -n "$output" ]] || exit 2
-printf '%s' "${CURL_BODY-downloaded-content}" > "$output"
-exit "${CURL_EXIT:-0}"
+printf '%s' "\${CURL_BODY-downloaded-content}" > "$output"
+exit "\${CURL_EXIT:-0}"
 CURL
 chmod +x "$TEST_DIR/bin/curl"
 PATH="$TEST_DIR/bin:$PATH"
@@ -254,7 +176,7 @@ fi
 [[ "$(cat "$TEST_DIR/atomic.deb")" == 'complete-new-content' ]]
 shopt -s nullglob
 staging=("$TEST_DIR"/atomic.deb.part.*)
-[[ "${#staging[@]}" -eq 0 ]]
+[[ "\${#staging[@]}" -eq 0 ]]
 
 CURL_BODY=''
 CURL_EXIT=0
@@ -270,4 +192,4 @@ if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.d
     exit 1
 fi
 
-printf 'PASS: package metadata, checksums, atomic downloads, and APT transaction validation\n'
+printf 'PASS: Debian metadata, checksums, release asset validation, version comparisons, APT transaction and atomic download tests\n'
