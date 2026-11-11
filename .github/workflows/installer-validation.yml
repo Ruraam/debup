@@ -157,3 +157,11 @@ jobs:
           grep -Fq 'Dry run: the GitHub token would be stored securely' debup-pkg/usr/local/bin/debup
           grep -Fq 'stale cached data will not be used' debup-pkg/usr/local/share/debup/api_cache.sh
           grep -Fq -- '--proto-redir' debup-pkg/usr/local/share/debup/package_validation.sh
+          grep -Fq 'parse_search_selection' debup-pkg/usr/local/share/debup/search.sh
+          grep -Fq 'validate_release_asset_selection' debup-pkg/usr/local/share/debup/package_validation.sh
+          grep -Fq 'global_release_ids' debup-pkg/usr/local/bin/debup
+          grep -Fq 'global_assets' debup-pkg/usr/local/bin/debup
+          grep -Fq 'releases/\${EXPECTED_RELEASE_ID}' debup-pkg/usr/local/bin/debup
+          grep -Fq 'install_apt_package "$selected_target" true' debup-pkg/usr/local/bin/debup
+          grep -Fq 'Only GitHub release repositories are supported by debup' scripts/sync_catalog.sh
+          ! grep -Fq 'direct_download' scripts/sync_catalog.sh
