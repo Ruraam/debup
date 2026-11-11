@@ -543,9 +543,9 @@ check_and_update() {
     fi
 
     if [[ "$REPO_URL" == *"api.github.com"* ]]; then
-        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\.github\\.com/repos/##; s#/$##')
+        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\.github\.com/repos/##; s#/$##')
     else
-        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\\.com/##; s#/$##; s#\\.git$##')
+        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\.com/##; s#/$##; s#\\.git$##')
     fi
 
     if [[ ! "$repo_path" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
@@ -621,7 +621,7 @@ check_and_update() {
     fi
 
     local deb_assets
-    deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\.deb$"; "i"))' <<< "$release_json")
+    deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$release_json")
     local compat_debs
     compat_debs=$(filter_compatible_debs "$deb_assets")
 
@@ -982,7 +982,7 @@ debup_search() {
                 | {
                     full_name: .full_name,
                     stars: (if (.stargazers_count | type) == "number" and .stargazers_count >= 0 then (.stargazers_count | tostring) else "0" end),
-                    description: (if (.description | type) == "string" then (.description | gsub("[\\\\u0000-\\\\u001F\\\\u007F]"; " ")) else "" end)
+                    description: (if (.description | type) == "string" then (.description | gsub("[\\u0000-\\u001F\\u007F]"; " ")) else "" end)
                   }
             ' <<< "$raw_results")
 
@@ -1122,7 +1122,9 @@ debup_search() {
             printf "${CYAN}%b${NC} ${GREEN}%s${NC}...\n" "$(printf "$MSG_INSPECTING_ASSETS" "")" "$selected_repo"
             printf "${CYAN}Selected release ID: %s; asset: %s${NC}\n" "$selected_release_id" "$selected_asset"
 
-            if ! check_and_update "$selected_repo" "" false "$selected_release_id" "$selected_asset"; then
+            check_and_update "$selected_repo" "" false "$selected_release_id" "$selected_asset"
+            local selected_install_status=$?
+            if [ "$selected_install_status" -eq 1 ]; then
                 install_failed=1
             fi
         fi
@@ -1469,7 +1471,7 @@ case "$1" in
         echo -e "${BLUE}---------------------------------------${NC}"
         [ -z "$TARGET" ] && { echo -e "${YELLOW}${MSG_USAGE_ADD}${NC}"; exit 1; }
 
-        if [[ "$TARGET" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(@.+)?$ ]] || [[ "$TARGET" =~ github\\.com ]]; then
+        if [[ "$TARGET" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(@.+)?$ ]] || [[ "$TARGET" =~ github\.com ]]; then
             check_and_update "$TARGET" "" "$ASSUME_YES"
         else
             printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${TARGET}${NC}${CYAN}")"
