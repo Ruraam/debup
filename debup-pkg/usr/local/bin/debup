@@ -575,7 +575,7 @@ check_and_update() {
     fi
     if ! jq -e --arg expected_id "$EXPECTED_RELEASE_ID" '
         type == "object" and
-        (.tag_name | type == "string" and length > 0) and
+        (.tag_name | type == "string" and length > 0 and (test("[[:cntrl:]]") | not)) and
         (.assets | type == "array") and
         ($expected_id == "" or ((.id | tostring) == $expected_id))
     ' >/dev/null 2>&1 <<< "$release_json"; then
@@ -1046,7 +1046,7 @@ debup_search() {
 
             release_id=$(jq -r '.id' <<< "$check_release")
             release_tag=$(jq -r '.tag_name' <<< "$check_release")
-            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\\.deb$"; "i"))' <<< "$check_release")
+            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$check_release")
             compatible_debs=$(filter_compatible_debs "$deb_assets")
             chosen_asset=$(select_compatible_deb_asset "$compatible_debs" "$DISTRO_PREF") || chosen_asset=""
 
