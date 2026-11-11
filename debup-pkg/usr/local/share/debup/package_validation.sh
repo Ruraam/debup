@@ -7,6 +7,29 @@ DEB_VALIDATED_PACKAGE=""
 DEB_VALIDATED_VERSION=""
 DEB_VALIDATED_ARCHITECTURE=""
 
+validate_release_asset_selection() {
+    local release_json="$1"
+    local expected_release_id="$2"
+    local expected_asset="$3"
+
+    [[ "$expected_release_id" =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ "$expected_asset" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*\.deb$ && "$expected_asset" != *".."* ]] || return 1
+
+    jq -e --arg expected_id "$expected_release_id" --arg asset_name "$expected_asset" '
+        type == "object" and
+        ((.id | tostring) == $expected_id) and
+        (.tag_name | type == "string" and length > 0 and (test("[[:cntrl:]]") | not)) and
+        (.assets | type == "array") and
+        ([.assets[] | select(.name == $asset_name)] | length == 1) and
+        ([
+            .assets[]
+            | select(.name == $asset_name)
+            | .browser_download_url
+            | select(type == "string" and test("^https://github\\.com/[^[:space:]]+$"))
+        ] | length == 1)
+    ' >/dev/null 2>&1 <<< "$release_json"
+}
+
 select_compatible_deb_asset() {
     local assets="$1"
     local distro_pref="${2,,}"
