@@ -422,7 +422,7 @@ debup_inspect() {
 
     local deb_urls deb_url_count deb_url
     deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || return 1
-    deb_url_count=$(printf '%s\\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
+    deb_url_count=$(printf '%s\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
     if [ "$deb_url_count" -ne 1 ]; then
         echo -e "${RED}✖ The selected Debian asset does not have exactly one download URL.${NC}" >&2
         return 1
@@ -484,7 +484,7 @@ debup_inspect() {
         rm -f -- "$tmp_deb"
         return 1
     fi
-    printf '%s\\n' "$file_listing" | awk '{print $1, $2, $6}' | sed 's/^/  /'
+    printf '%s\n' "$file_listing" | awk '{print $1, $2, $6}' | sed 's/^/  /'
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 }
 
@@ -500,18 +500,18 @@ install_apt_package() {
     fi
 
     if [ "$DRY_RUN" = "true" ]; then
-        printf "${YELLOW}%b${NC}\\n" "$(printf "$MSG_DRY_APT_INSTALL" "$target")"
+        printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_INSTALL" "$target")"
         return 0
     fi
 
     if ! apt_plan=$($ELEVATE env LC_ALL=C apt-get --simulate install "$target" 2>&1); then
         echo -e "${RED}✖ APT could not resolve the requested package transaction; installation aborted.${NC}" >&2
-        printf '%s\\n' "$apt_plan" >&2
+        printf '%s\n' "$apt_plan" >&2
         return 1
     fi
     if apt_plan_has_removals "$apt_plan"; then
         echo -e "${RED}✖ APT would remove or purge installed packages; refusing this transaction.${NC}" >&2
-        printf '%s\\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+        printf '%s\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
         return 1
     fi
 
@@ -543,7 +543,7 @@ check_and_update() {
     fi
 
     if [[ "$REPO_URL" == *"api.github.com"* ]]; then
-        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\\.github\\.com/repos/##; s#/$##')
+        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\.github\\.com/repos/##; s#/$##')
     else
         repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\\.com/##; s#/$##; s#\\.git$##')
     fi
@@ -621,13 +621,13 @@ check_and_update() {
     fi
 
     local deb_assets
-    deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$release_json")
+    deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\.deb$"; "i"))' <<< "$release_json")
     local compat_debs
     compat_debs=$(filter_compatible_debs "$deb_assets")
 
     if [ -z "$compat_debs" ]; then
         echo -e "${BLUE}---------------------------------------${NC}"
-        printf "${RED}%b${NC}\\n" "$(printf "$MSG_ERR_NO_COMPAT_DEB" "$ARCH")"
+        printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_NO_COMPAT_DEB" "$ARCH")"
         return 1
     fi
 
@@ -637,7 +637,7 @@ check_and_update() {
             echo -e "${RED}✖ The selected asset is missing or ambiguous in the selected release.${NC}" >&2
             return 1
         fi
-        if [[ ! "$EXPECTED_ASSET" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*\\.deb$ || "$EXPECTED_ASSET" == *".."* ]] ||
+        if [[ ! "$EXPECTED_ASSET" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*\.deb$ || "$EXPECTED_ASSET" == *".."* ]] ||
            ! grep -Fxq -- "$EXPECTED_ASSET" <<< "$compat_debs"; then
             echo -e "${RED}✖ The selected asset is not a safe, architecture-compatible Debian package.${NC}" >&2
             return 1
@@ -656,7 +656,7 @@ check_and_update() {
         echo -e "${RED}✖ Unable to parse the selected Debian asset URL.${NC}" >&2
         return 1
     }
-    deb_url_count=$(printf '%s\\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
+    deb_url_count=$(printf '%s\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
     if [ "$deb_url_count" -ne 1 ]; then
         echo -e "${RED}✖ The selected Debian asset does not have exactly one download URL.${NC}" >&2
         return 1
@@ -672,14 +672,14 @@ check_and_update() {
         echo -e "${RED}✖ Unable to parse checksum asset metadata.${NC}" >&2
         return 1
     }
-    checksum_count=$(printf '%s\\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
+    checksum_count=$(printf '%s\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
 
     if [ "$checksum_count" -eq 0 ]; then
         checksum_names=$(jq -r '[.assets[] | select(.name | test("^(SHA256SUMS|sha256sums|checksums\\.txt)$"; "i")) | .name] | .[]' <<< "$release_json") || {
             echo -e "${RED}✖ Unable to parse checksum manifest metadata.${NC}" >&2
             return 1
         }
-        checksum_count=$(printf '%s\\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
+        checksum_count=$(printf '%s\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
     fi
 
     if [ "$checksum_count" -gt 1 ]; then
@@ -694,7 +694,7 @@ check_and_update() {
             return 1
         }
         local checksum_url_count
-        checksum_url_count=$(printf '%s\\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+        checksum_url_count=$(printf '%s\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
         if [ "$checksum_url_count" -ne 1 ]; then
             echo -e "${RED}✖ Published checksum asset has no unique download URL.${NC}" >&2
             return 1
@@ -736,7 +736,7 @@ check_and_update() {
     printf "${YELLOW}%b${NC} ${GRAY}%s${NC}\n" "$(printf "$MSG_DOWNLOADING" "")" "${deb_url}"
     if ! download_file_atomic "$deb_url" "$tmp_deb" 300 true; then
         echo -e "${BLUE}---------------------------------------${NC}"
-        echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\\n"
+        echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\n"
         rm -f -- "$tmp_deb"
         return 1
     fi
@@ -750,7 +750,7 @@ check_and_update() {
     local deb_pkg="$DEB_VALIDATED_PACKAGE"
 
     if ! deb_version_matches_release_floor "$DEB_VALIDATED_VERSION" "$remote_ver"; then
-        printf "${RED}Downloaded package version %s is older than the GitHub release tag %s; refusing installation.\\n${NC}" \
+        printf "${RED}Downloaded package version %s is older than the GitHub release tag %s; refusing installation.\n${NC}" \
             "$DEB_VALIDATED_VERSION" "$latest_tag" >&2
         rm -f -- "$tmp_deb"
         return 1
@@ -840,13 +840,13 @@ check_and_update() {
     local apt_plan
     if ! apt_plan=$($ELEVATE env LC_ALL=C apt-get --simulate install "$tmp_deb" 2>&1); then
         echo -e "${RED}✖ APT could not resolve the requested package transaction; installation aborted.${NC}" >&2
-        printf '%s\\n' "$apt_plan" >&2
+        printf '%s\n' "$apt_plan" >&2
         rm -f -- "$tmp_deb"
         return 1
     fi
     if apt_plan_has_removals "$apt_plan"; then
         echo -e "${RED}✖ APT would remove or purge installed packages; refusing this transaction.${NC}" >&2
-        printf '%s\\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+        printf '%s\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
         rm -f -- "$tmp_deb"
         return 1
     fi
@@ -905,7 +905,7 @@ debup_search() {
     }
 
     echo -e "${BLUE}---------------------------------------${NC}"
-    printf "${BLUE}::${NC} ${CYAN}%b${NC}\\n" "$(printf "$MSG_SEARCHING_GH" "$query")"
+    printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_SEARCHING_GH" "$query")"
 
     local -a global_targets=()
     local -a global_types=()
@@ -915,14 +915,14 @@ debup_search() {
     local apt_results=""
     local apt_search_failed=false
 
-    echo -e "\\n${MAGENTA}${BOLD}[ Debian / APT ]${NC}"
+    echo -e "\n${MAGENTA}${BOLD}[ Debian / APT ]${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 
     if ! apt_results=$(apt-cache search "$query" 2>/dev/null); then
         apt_search_failed=true
         apt_results=""
     fi
-    apt_results=$(printf '%s\\n' "$apt_results" | awk 'NR <= 5')
+    apt_results=$(printf '%s\n' "$apt_results" | awk 'NR <= 5')
 
     if [ -n "$apt_results" ]; then
         while IFS= read -r line; do
@@ -936,7 +936,7 @@ debup_search() {
             global_release_ids[display_idx]=""
             global_assets[display_idx]=""
 
-            printf "${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${GRAY}(APT)${NC}\\n     ${GRAY}%s${NC}\\n" \
+            printf "${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${GRAY}(APT)${NC}\n     ${GRAY}%s${NC}\n" \
                 "$display_idx" "$apt_pkg" "${apt_desc:0:70}"
             display_idx=$((display_idx + 1))
         done <<< "$apt_results"
@@ -946,7 +946,7 @@ debup_search() {
         echo -e " ${GRAY}${MSG_SEARCH_NO_APT}${NC}"
     fi
 
-    echo -e "\\n${GREEN}${BOLD}[ GitHub Releases ]${NC}"
+    echo -e "\n${GREEN}${BOLD}[ GitHub Releases ]${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 
     local -a candidate_repos=()
@@ -1011,7 +1011,7 @@ debup_search() {
         if [ "$github_search_failed" = true ]; then
             echo -e " ${YELLOW}GitHub search is currently unavailable.${NC}"
         else
-            printf " ${GRAY}%b${NC}\\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
+            printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
         fi
     else
         if [ "$github_search_failed" = true ]; then
@@ -1045,7 +1045,7 @@ debup_search() {
 
             release_id=$(jq -r '.id' <<< "$check_release")
             release_tag=$(jq -r '.tag_name' <<< "$check_release")
-            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\\\.deb$"; "i"))' <<< "$check_release")
+            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\\.deb$"; "i"))' <<< "$check_release")
             compatible_debs=$(filter_compatible_debs "$deb_assets")
             chosen_asset=$(select_compatible_deb_asset "$compatible_debs" "$DISTRO_PREF") || chosen_asset=""
 
@@ -1056,13 +1056,13 @@ debup_search() {
                 global_assets[display_idx]="$chosen_asset"
 
                 if [ "$candidate_stars_value" = "-" ]; then
-                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${CYAN}(curated)${NC}\\n     ${GRAY}%s${NC}\\n" \
+                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${CYAN}(curated)${NC}\n     ${GRAY}%s${NC}\n" \
                         "$display_idx" "$candidate_repo" "${candidate_desc:0:70}"
                 else
-                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\\n     ${GRAY}%s${NC}\\n" \
+                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\n     ${GRAY}%s${NC}\n" \
                         "$display_idx" "$candidate_repo" "$candidate_stars_value" "${candidate_desc:0:70}"
                 fi
-                printf "     ${CYAN}Release %s — %s${NC}\\n" "$release_tag" "$chosen_asset"
+                printf "     ${CYAN}Release %s — %s${NC}\n" "$release_tag" "$chosen_asset"
 
                 display_idx=$((display_idx + 1))
                 gh_valid=$((gh_valid + 1))
@@ -1072,12 +1072,12 @@ debup_search() {
 
         if [ "$gh_valid" -eq 0 ]; then
             if [ "$release_check_failed" -gt 0 ]; then
-                printf " ${YELLOW}GitHub release verification was incomplete; no package was selected.${NC}\\n" >&2
+                printf " ${YELLOW}GitHub release verification was incomplete; no package was selected.${NC}\n" >&2
             else
-                printf " ${GRAY}%b${NC}\\n" "$(printf "$MSG_NO_DEB_IN_REPOS" "$query")"
+                printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_DEB_IN_REPOS" "$query")"
             fi
         elif [ "$release_check_failed" -gt 0 ]; then
-            printf " ${YELLOW}%d repository/repositories could not be verified; the displayed candidates were checked successfully.${NC}\\n" "$release_check_failed" >&2
+            printf " ${YELLOW}%d repository/repositories could not be verified; the displayed candidates were checked successfully.${NC}\n" "$release_check_failed" >&2
         fi
     fi
 
@@ -1110,17 +1110,17 @@ debup_search() {
         echo -e "${BLUE}---------------------------------------${NC}"
 
         if [ "$selected_type" = "APT" ]; then
-            printf "${BLUE}::${NC} ${CYAN}%b${NC}\\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${selected_target}${NC}${CYAN}")"
+            printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${selected_target}${NC}${CYAN}")"
             if ! install_apt_package "$selected_target" true; then
                 install_failed=1
-                printf "${RED}✖ APT package installation failed: %s${NC}\\n" "$selected_target" >&2
+                printf "${RED}✖ APT package installation failed: %s${NC}\n" "$selected_target" >&2
             fi
         else
             local selected_repo="$selected_target"
             local selected_release_id="${global_release_ids[choice]}"
             local selected_asset="${global_assets[choice]}"
-            printf "${CYAN}%b${NC} ${GREEN}%s${NC}...\\n" "$(printf "$MSG_INSPECTING_ASSETS" "")" "$selected_repo"
-            printf "${CYAN}Selected release ID: %s; asset: %s${NC}\\n" "$selected_release_id" "$selected_asset"
+            printf "${CYAN}%b${NC} ${GREEN}%s${NC}...\n" "$(printf "$MSG_INSPECTING_ASSETS" "")" "$selected_repo"
+            printf "${CYAN}Selected release ID: %s; asset: %s${NC}\n" "$selected_release_id" "$selected_asset"
 
             if ! check_and_update "$selected_repo" "" false "$selected_release_id" "$selected_asset"; then
                 install_failed=1
@@ -1355,10 +1355,10 @@ debup_stats() {
 
 debup_clean() {
     echo -e "${BLUE}---------------------------------------${NC}"
-    printf "${BLUE}::${NC} ${CYAN}%b${NC}\\n" "${MSG_CLEANING_CACHE:-Cleaning APT cache and temporary files...}"
+    printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "${MSG_CLEANING_CACHE:-Cleaning APT cache and temporary files...}"
 
     if [ "$DRY_RUN" = "true" ]; then
-        printf "${YELLOW}%b${NC}\\n" "${MSG_DRY_CLEAN:-Dry run: APT and API caches would be cleaned.}"
+        printf "${YELLOW}%b${NC}\n" "${MSG_DRY_CLEAN:-Dry run: APT and API caches would be cleaned.}"
         echo -e "${BLUE}---------------------------------------${NC}"
         return 0
     fi
@@ -1472,14 +1472,14 @@ case "$1" in
         if [[ "$TARGET" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(@.+)?$ ]] || [[ "$TARGET" =~ github\\.com ]]; then
             check_and_update "$TARGET" "" "$ASSUME_YES"
         else
-            printf "${BLUE}::${NC} ${CYAN}%b${NC}\\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${TARGET}${NC}${CYAN}")"
+            printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${TARGET}${NC}${CYAN}")"
             if ! install_apt_package "$TARGET" "$ASSUME_YES"; then
                 echo -e "${BLUE}---------------------------------------${NC}"
-                printf "${RED}✖ %b${NC}\\n\\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
+                printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
                 exit 1
             fi
             echo -e "${BLUE}---------------------------------------${NC}"
-            printf "${GREEN}✔ %b${NC}\\n\\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-APT package %s installed.}" "${TARGET}")"
+            printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-APT package %s installed.}" "${TARGET}")"
         fi
         ;;
 
