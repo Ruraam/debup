@@ -120,7 +120,7 @@ jobs:
           [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Architecture)" == "all" ]]
           dpkg-deb --contents "$work_dir/debup-ci.deb" >/dev/null
           cmp -s curated_db.txt debup-pkg/usr/local/share/debup/curated_db.txt
-          dpkg-deb --fsys-tarfile "$work_dir/debup-ci.deb" | tar -tf - | grep -Fxq "./usr/local/share/debup/curated_db.txt"
+          dpkg-deb --fsys-tarfile "$work_dir/debup-ci.deb" | tar -tf - | grep -Fx "./usr/local/share/debup/curated_db.txt" >/dev/null
 
           sudo apt-get install -y curl jq
           sudo apt-get install -y "$work_dir/debup-ci.deb"
