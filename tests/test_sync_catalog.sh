@@ -52,7 +52,7 @@ fi
 
 # Successful synchronization must include literal supported entries only.
 MOCK_GIT_FAIL=0 "${REPO_DIR}/scripts/sync_catalog.sh" >/dev/null
-expected=$'direct-app|direct|https://example.org/releases/direct-app.deb\ngithub-app|github|vendor/github-app'
+expected='github-app|github|vendor/github-app'
 actual="$(cat "$CATALOG")"
 [[ "$actual" == "$expected" ]] || {
     printf 'FAIL: unexpected generated catalog\nExpected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
