@@ -46,7 +46,8 @@ chmod 0755 "$TEST_DIR/mock-bin/id"
 # directory into this test's temporary sandbox.
 cp -a "$ROOT_DIR/debup-pkg" "$TEST_DIR/debup-pkg"
 sed "s|^CONF_DIR=\"/etc/debup\"$|CONF_DIR=\"$TEST_CONF_DIR\"|" \
-    "$TEST_DIR/debup-pkg/usr/local/bin/debup" > "$TEST_DIR/debup-pkg/usr/local/bin/debup"
+    "$TEST_DIR/debup-pkg/usr/local/bin/debup" > "$TEST_DIR/debup-pkg/usr/local/bin/debup.test"
+mv "$TEST_DIR/debup-pkg/usr/local/bin/debup.test" "$TEST_DIR/debup-pkg/usr/local/bin/debup"
 cp "$TEST_DIR/debup-pkg/usr/local/bin/debup" "$TEST_DIR/debup-pkg/usr/local/bin/dbp"
 chmod 0755 "$TEST_DIR/debup-pkg/usr/local/bin/debup" "$TEST_DIR/debup-pkg/usr/local/bin/dbp"
 DEBUP="$TEST_DIR/debup-pkg/usr/local/bin/debup"
