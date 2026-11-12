@@ -192,4 +192,53 @@ if download_file_atomic "http://example.invalid/package.deb" "$TEST_DIR/atomic.d
     exit 1
 fi
 
+# Installer checksum-asset selection regression tests. Extract the real
+# function from installer.sh so the test exercises production logic without
+# executing the interactive installer.
+resolver_file="$TEST_DIR/find_checksum_url.sh"
+awk '
+    /^find_checksum_url\(\) \{/ { capture=1 }
+    capture { print }
+    capture && /^\}$/ { exit }
+' "$ROOT_DIR/installer.sh" > "$resolver_file"
+[[ -s "$resolver_file" ]]
+# shellcheck source=/dev/null
+source "$resolver_file"
+
+one_exact='{"assets":[{"name":"debup.deb.sha256","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup.deb.sha256"}]}'
+[[ "$(find_checksum_url "$one_exact" "debup.deb")" == "https://github.com/Ruraam/debup/releases/download/v1/debup.deb.sha256" ]]
+
+duplicate_exact='{"assets":[{"name":"debup.deb.sha256","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/a"},{"name":"debup.deb.sha256","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/b"}]}'
+if find_checksum_url "$duplicate_exact" "debup.deb" >/dev/null 2>&1; then
+    printf 'FAIL: ambiguous exact checksum assets were accepted\\n' >&2
+    exit 1
+fi
+
+one_generic='{"assets":[{"name":"SHA256SUMS","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/SHA256SUMS"},{"name":"other.txt","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/other.txt"}]}'
+[[ "$(find_checksum_url "$one_generic" "debup.deb")" == "https://github.com/Ruraam/debup/releases/download/v1/SHA256SUMS" ]]
+
+duplicate_generic='{"assets":[{"name":"SHA256SUMS","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/SHA256SUMS"},{"name":"checksums.txt","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/checksums.txt"}]}'
+if find_checksum_url "$duplicate_generic" "debup.deb" >/dev/null 2>&1; then
+    printf 'FAIL: ambiguous generic checksum assets were accepted\\n' >&2
+    exit 1
+fi
+
+fallback='{"assets":[{"name":"tool.sha256","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/tool.sha256"}]}'
+[[ "$(find_checksum_url "$fallback" "debup.deb")" == "https://github.com/Ruraam/debup/releases/download/v1/tool.sha256" ]]
+
+if find_checksum_url '{"assets":[]}' "debup.deb" >/dev/null 2>&1; then
+    printf 'FAIL: missing checksum assets were accepted\\n' >&2
+    exit 1
+fi
+if find_checksum_url '{"assets":[{"name":"SHA256SUMS","browser_download_url":"http://github.com/Ruraam/debup/SHA256SUMS"}]}' "debup.deb" >/dev/null 2>&1; then
+    printf 'FAIL: non-HTTPS checksum asset URL was accepted\\n' >&2
+    exit 1
+fi
+if find_checksum_url '{"invalid":true}' "debup.deb" >/dev/null 2>&1; then
+    printf 'FAIL: malformed release metadata was accepted\\n' >&2
+    exit 1
+fi
+
+printf 'PASS: installer checksum asset selection and ambiguity rejection\\n'
+
 printf 'PASS: Debian metadata, checksums, release asset validation, version comparisons, APT transaction and atomic download tests\n'
