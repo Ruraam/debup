@@ -135,6 +135,7 @@ jobs:
             SHA256SUMS
 
       - name: Trigger APT repository publication
+        if: ${{ !github.event.release.prerelease }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
