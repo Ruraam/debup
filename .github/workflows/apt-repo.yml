@@ -32,7 +32,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y reprepro gpg
 
-      - name: Download assets from the requested release
+      - name: Download all stable release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -40,65 +40,94 @@ jobs:
           set -Eeuo pipefail
           mkdir -p debs
 
-          for attempt in $(seq 1 12); do
-            rm -f debs/*.deb
-            if gh release download "$RELEASE_TAG" --pattern "*.deb" --pattern "SHA256SUMS" --dir debs/ --clobber; then
-              if [[ -s debs/SHA256SUMS ]] && find debs -maxdepth 1 -type f -name '*.deb' -print -quit | grep -q .; then
-                (
-                  cd debs
-                  sha256sum --check --strict SHA256SUMS
-                )
-                break
-              fi
-            fi
+          # Enumerate published stable releases, oldest or newest order is
+          # irrelevant to reprepro; every package version is indexed.
+          mapfile -t release_tags < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name'
+          )
 
-            if [[ "$attempt" -eq 12 ]]; then
-              echo "Error: No .deb assets found in release $RELEASE_TAG." >&2
-              exit 1
-            fi
-            echo "Waiting for DEB assets for release $RELEASE_TAG (attempt $attempt/12)..."
-            sleep 5
-          done
-
-          mapfile -t packages < <(find debs -maxdepth 1 -type f -name '*.deb' -print | sort)
-          (("${#packages[@]}" > 0)) || {
-            echo "Error: Release contains no Debian packages." >&2
+          (("${#release_tags[@]}" > 0)) || {
+            echo "Error: No published stable releases were found." >&2
             exit 1
           }
 
-          expected_version="${RELEASE_TAG#v}"
-          dpkg --validate-version "$expected_version" || {
-            echo "Error: Invalid Debian version in release tag: $RELEASE_TAG" >&2
+          requested_found=false
+          for tag in "${release_tags[@]}"; do
+            [[ "$tag" == "$RELEASE_TAG" ]] && requested_found=true
+            release_dir="debs/$tag"
+            mkdir -p "$release_dir"
+
+            if ! gh release download "$tag" \
+              --pattern "*.deb" \
+              --pattern "SHA256SUMS" \
+              --dir "$release_dir"; then
+              echo "Warning: No downloadable DEB assets for $tag; skipping." >&2
+              continue
+            fi
+
+            mapfile -t packages < <(
+              find "$release_dir" -maxdepth 1 -type f -name '*.deb' -print | sort
+            )
+            (("${#packages[@]}" > 0)) || {
+              echo "No DEB package for $tag; skipping."
+              continue
+            }
+
+            # The current release must always carry and pass its checksum.
+            if [[ -f "$release_dir/SHA256SUMS" ]]; then
+              (
+                cd "$release_dir"
+                sha256sum --check --strict SHA256SUMS
+              )
+            elif [[ "$tag" == "$RELEASE_TAG" ]]; then
+              echo "Error: SHA256SUMS is missing from requested release $tag." >&2
+              exit 1
+            else
+              echo "Warning: Legacy release $tag has no SHA256SUMS; relying on GitHub release asset transport." >&2
+            fi
+
+            expected_version="${tag#v}"
+            dpkg --validate-version "$expected_version" || {
+              echo "Error: Invalid Debian version in release tag: $tag" >&2
+              exit 1
+            }
+
+            for package in "${packages[@]}"; do
+              package_name="$(dpkg-deb -f "$package" Package)"
+              package_version="$(dpkg-deb -f "$package" Version)"
+              package_arch="$(dpkg-deb -f "$package" Architecture)"
+
+              [[ "$package_name" == "debup" ]] || {
+                echo "Error: Unexpected package in $tag: $package" >&2
+                exit 1
+              }
+              [[ "$package_version" == "$expected_version" ]] || {
+                echo "Error: $package has version $package_version; expected $expected_version." >&2
+                exit 1
+              }
+              [[ "$package_arch" == "all" ]] || {
+                echo "Error: Expected Architecture: all, received $package_arch." >&2
+                exit 1
+              }
+            done
+          done
+
+          "$requested_found" == "true" || {
+            echo "Error: Requested release $RELEASE_TAG is not a published stable release." >&2
             exit 1
           }
 
-          for package in "${packages[@]}"; do
-            package_name="$(dpkg-deb -f "$package" Package)" || {
-              echo "Error: Cannot read package name: $package" >&2
-              exit 1
-            }
-            package_version="$(dpkg-deb -f "$package" Version)" || {
-              echo "Error: Cannot read package version: $package" >&2
-              exit 1
-            }
-            package_arch="$(dpkg-deb -f "$package" Architecture)" || {
-              echo "Error: Cannot read package architecture: $package" >&2
-              exit 1
-            }
-
-            [[ "$package_name" == "debup" ]] || {
-              echo "Error: Unexpected package in release: $package" >&2
-              exit 1
-            }
-            [[ "$package_version" == "$expected_version" ]] || {
-              echo "Error: Package version $package_version does not match release $expected_version." >&2
-              exit 1
-            }
-            [[ "$package_arch" == "all" ]] || {
-              echo "Error: Expected Architecture: all, received $package_arch." >&2
-              exit 1
-            }
-          done
+          # At least one package must exist, and the requested release must
+          # contribute its own package to the repository.
+          find debs -type f -name '*.deb' -print -quit | grep -q . || {
+            echo "Error: No valid DEB packages were downloaded." >&2
+            exit 1
+          }
+          find "debs/$RELEASE_TAG" -maxdepth 1 -type f -name '*.deb' -print -quit | grep -q . || {
+            echo "Error: Requested release $RELEASE_TAG contains no DEB package." >&2
+            exit 1
+          }
 
       - name: Import signing key and build APT repository
         env:
