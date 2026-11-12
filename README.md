@@ -168,6 +168,8 @@ curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bas
  
 </div>
 
+> **APT repository maintainer note:** the GitHub Actions publisher uses a dedicated GPG signing key stored in the `GPG_PRIVATE_KEY` repository secret. The key must be usable non-interactively (without a passphrase prompt); the workflow performs a signing preflight and fails before deployment if it cannot sign. Its primary fingerprint must match the value pinned in `installer.sh`.
+
 ---
 
 ### 🔑 Configure a GitHub Token (optional) [ `dbp token` ]
