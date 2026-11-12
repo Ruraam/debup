@@ -118,6 +118,9 @@ jobs:
       - name: Test CLI function scope
         run: bash tests/test_cli_function_scope.sh
 
+      - name: Test CLI argument regressions
+        run: bash tests/test_cli_arguments.sh
+
       - name: Build and inspect Debian package
         shell: bash
         run: |
