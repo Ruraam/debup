@@ -210,8 +210,16 @@ jobs:
             "$RUNNER_TEMP/debup-signing-check.txt"
 
           cd public
-          for deb in ../debs/*.deb; do
-            [[ -f "$deb" ]] || continue
+          # Packages are stored under debs/<release-tag>/; collect every
+          # validated package recursively and import them in stable order.
+          mapfile -t all_packages < <(
+            find ../debs -type f -name '*.deb' -print | sort
+          )
+          (("${#all_packages[@]}" > 0)) || {
+            echo "Error: No packages are available for APT import." >&2
+            exit 1
+          }
+          for deb in "${all_packages[@]}"; do
             reprepro includedeb stable "$deb"
           done
 
