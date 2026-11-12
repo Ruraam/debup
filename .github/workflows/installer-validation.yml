@@ -111,6 +111,9 @@ jobs:
       - name: Test Debian maintainer scripts
         run: bash tests/test_package_scripts.sh
 
+      - name: Test CLI function scope
+        run: bash tests/test_cli_function_scope.sh
+
       - name: Build and inspect Debian package
         shell: bash
         run: |
@@ -329,7 +332,6 @@ jobs:
               bash -n tests/test_sync_catalog.sh
               bash -n tests/test_package_scripts.sh
               bash -n tests/test_cli_function_scope.sh
-          bash -n tests/test_cli_function_scope.sh
               bash -n debup-pkg/DEBIAN/postinst
               bash -n debup-pkg/DEBIAN/postrm
               bash -n debup-pkg/usr/local/bin/debup
@@ -341,7 +343,6 @@ jobs:
               bash tests/test_sync_catalog.sh
               bash tests/test_package_scripts.sh
               bash tests/test_cli_function_scope.sh
-          bash tests/test_cli_function_scope.sh
               cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
 
               work_dir="$(mktemp -d)"
