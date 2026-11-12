@@ -58,6 +58,9 @@ export XDG_CONFIG_HOME="$TEST_DIR/home/config"
 export CONF_DIR="$TEST_DIR/etc/debup"
 export ELEVATE=""
 export DRY_RUN=false
+# set_github_token() uses the CLI color variables when reporting status.
+# Keep them defined in this isolated test environment under `set -u`.
+export BLUE='' GREEN='' RED='' YELLOW='' CYAN='' GRAY='' MAGENTA='' BOLD='' NC=''
 
 awk '
     /^set_github_token\(\) \{$/ { capture = 1 }
