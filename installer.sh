@@ -248,8 +248,7 @@ find_checksum_url() {
     local release_json="$1"
     local deb_name="$2"
     local matches
-    local url
-
+     
     # A malformed release payload must never be interpreted as an empty asset list.
     if ! jq -e '.assets | type == "array"' >/dev/null 2>&1 <<< "$release_json"; then
         echo "Invalid GitHub release asset metadata." >&2
