@@ -8,6 +8,8 @@ on:
 permissions:
   contents: write
   actions: write
+  pages: write
+  id-token: write
 
 jobs:
   build-deb:
@@ -134,11 +136,11 @@ jobs:
             debup_*.deb
             SHA256SUMS
 
-      - name: Trigger APT repository publication
-        if: ${{ !github.event.release.prerelease }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          set -Eeuo pipefail
-          gh workflow run apt-repo.yml --ref main -f "release_tag=$RELEASE_TAG"
+  publish-apt-repo:
+    name: Publish APT repository
+    if: ${{ !github.event.release.prerelease }}
+    needs: build-deb
+    uses: ./.github/workflows/apt-repo.yml
+    with:
+      release_tag: ${{ github.event.release.tag_name }}
+    secrets: inherit
