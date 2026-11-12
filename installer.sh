@@ -256,7 +256,7 @@ select_release_deb_url() {
         amd64) aliases="amd64|x86_64|x64" ;;
         arm64) aliases="arm64|aarch64|arm64v8" ;;
         armhf) aliases="armhf|armv7l" ;;
-        i386)  aliases="i386|i686|x86" ;;
+        i386)  aliases="i386|i686" ;;
         *)     aliases="$architecture" ;;
     esac
 
