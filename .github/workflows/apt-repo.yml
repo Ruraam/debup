@@ -66,9 +66,36 @@ jobs:
             exit 1
           }
 
+          expected_version="${RELEASE_TAG#v}"
+          dpkg --validate-version "$expected_version" || {
+            echo "Error: Invalid Debian version in release tag: $RELEASE_TAG" >&2
+            exit 1
+          }
+
           for package in "${packages[@]}"; do
-            [[ "$(dpkg-deb -f "$package" Package)" == "debup" ]] || {
+            package_name="$(dpkg-deb -f "$package" Package)" || {
+              echo "Error: Cannot read package name: $package" >&2
+              exit 1
+            }
+            package_version="$(dpkg-deb -f "$package" Version)" || {
+              echo "Error: Cannot read package version: $package" >&2
+              exit 1
+            }
+            package_arch="$(dpkg-deb -f "$package" Architecture)" || {
+              echo "Error: Cannot read package architecture: $package" >&2
+              exit 1
+            }
+
+            [[ "$package_name" == "debup" ]] || {
               echo "Error: Unexpected package in release: $package" >&2
+              exit 1
+            }
+            [[ "$package_version" == "$expected_version" ]] || {
+              echo "Error: Package version $package_version does not match release $expected_version." >&2
+              exit 1
+            }
+            [[ "$package_arch" == "all" ]] || {
+              echo "Error: Expected Architecture: all, received $package_arch." >&2
               exit 1
             }
           done
@@ -94,6 +121,23 @@ jobs:
             exit 1
           }
           KEY_ID="${key_ids[0]}"
+
+          # Keep the repository signing key aligned with the fingerprint pinned
+          # by installer.sh; otherwise clients would reject the published key.
+          expected_fingerprint="0F43E2925658EB3CAC8BA4B6B3C2F87E36A62AE2"
+          mapfile -t primary_fingerprints < <(
+            gpg --batch --with-colons --fingerprint --list-secret-keys |
+              awk -F: '$1 == "sec" { awaiting_fingerprint = 1; next }
+                awaiting_fingerprint && $1 == "fpr" {
+                  print toupper($10)
+                  awaiting_fingerprint = 0
+                }'
+          )
+          (( "${#primary_fingerprints[@]}" == 1 )) &&
+            [[ "${primary_fingerprints[0]}" == "$expected_fingerprint" ]] || {
+              echo "Error: Imported signing key does not match the installer-pinned fingerprint." >&2
+              exit 1
+            }
 
           mkdir -p public/conf
           cat > public/conf/distributions <<EOF
