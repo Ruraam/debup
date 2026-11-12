@@ -373,7 +373,7 @@ set_github_token() {
         echo -e "${RED}✖ Unable to create a temporary token file.${NC}" >&2
         return 1
     }
-    if ! printf '%s\\n' "$token" > "$user_tmp" ||
+    if ! printf '%s\n' "$token" > "$user_tmp" ||
        ! chmod 600 "$user_tmp" ||
        ! mv -f -- "$user_tmp" "$user_conf_dir/token"; then
         rm -f -- "$user_tmp"
@@ -393,7 +393,7 @@ set_github_token() {
             echo -e "${RED}✖ Unable to create a temporary system token file.${NC}" >&2
             return 1
         }
-        if ! printf 'GITHUB_TOKEN="%s"\\n' "$token" | $ELEVATE tee "$root_tmp" >/dev/null ||
+        if ! printf 'GITHUB_TOKEN="%s"\n' "$token" | $ELEVATE tee "$root_tmp" >/dev/null ||
            ! $ELEVATE chmod 600 "$root_tmp" ||
            ! $ELEVATE mv -f -- "$root_tmp" "$CONF_DIR/debup.conf"; then
             $ELEVATE rm -f -- "$root_tmp" 2>/dev/null || true
