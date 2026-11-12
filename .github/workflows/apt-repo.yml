@@ -88,7 +88,7 @@ jobs:
 
             mapfile -t asset_digests < <(
               gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" \
-                --jq '.assets[] | select(.name | endswith(".deb")) | [.name, .digest] | @tsv'
+                --jq '.assets[] | select(.name | endswith(".deb")) | "\(.name)|\(.digest)"'
             )
             (("${#asset_digests[@]}" == "${#packages[@]}")) || {
               echo "Error: GitHub asset metadata does not match downloaded packages for $tag." >&2
@@ -96,11 +96,25 @@ jobs:
             }
 
             for asset_entry in "${asset_digests[@]}"; do
-              IFS=            dpkg --validate-version "$expected_version" || {
+              asset_name="${asset_entry%%|*}"
+              asset_digest="${asset_entry#*|}"
+              expected_digest="${asset_digest#sha256:}"
+              [[ "$expected_digest" =~ ^[[:xdigit:]]{64}$ ]] || {
+                echo "Error: Missing or invalid GitHub SHA-256 digest for $tag/$asset_name." >&2
+                exit 1
+              }
+              actual_digest="$(sha256sum "$release_dir/$asset_name" | awk '{print $1}')"
+              [[ "$actual_digest" == "$expected_digest" ]] || {
+                echo "Error: GitHub asset digest mismatch for $tag/$asset_name." >&2
+                exit 1
+              }
+            done
+
+            expected_version="${tag#v}"
+            dpkg --validate-version "$expected_version" || {
               echo "Error: Invalid Debian version in release tag: $tag" >&2
               exit 1
             }
-
             for package in "${packages[@]}"; do
               package_name="$(dpkg-deb -f "$package" Package)"
               package_version="$(dpkg-deb -f "$package" Version)"
