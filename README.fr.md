@@ -1,356 +1,170 @@
 <div align="center">
- 
-<img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=130&height=130" alt="debup logo" />
-<h1>debup</h1>
-<p><strong>debup - Gestionnaire de paquets hybride : le pont manquant entre GitHub & APT pour les distributions basées sur Debian/Ubuntu, Raspberry Pi, Docker, WSL & le terminal Linux Android (AVF).</strong></p>
-<p>Recherchez, découvrez, suivez, installez et mettez à jour des paquets <code>.deb</code> directement depuis APT & GitHub Releases <strong>simultanément</strong>.</p>
-<p><em>Pas de PPA, pas de sandbox lourds, pas de dépôts tiers — uniquement des binaires <code>.deb</code> natifs récupérés directement depuis l'upstream.
-Installation facile avec l'<a href="https://github.com/Ruraam/debup#-installation">installeur Debup interactif/non-interactif</a>.</em></p>
-  
-</div>
 
-<br/>
+<img src="assets/debup-animated.svg" alt="debup" width="560">
 
-<div align="center">
-<a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="GPL v3"></a> &nbsp;
-<a href="https://debian.org"><img src="https://img.shields.io/badge/Platform-Debian%20%7C%20Ubuntu-red.svg" alt="Platform"></a> &nbsp;
-<a href="#"><img src="https://img.shields.io/badge/Arch-all%20(any)-orange.svg" alt="Arch"></a> &nbsp;
-<a href="https://www.gnu.org/software/bash/"><img src="https://img.shields.io/badge/Language-Bash-4EAA25.svg" alt="Bash"></a>
-</div>
+# debup
 
-<div align="center">
-<a href="https://github.com/Ruraam/debup/releases"><img src="https://img.shields.io/github/v/release/Ruraam/debup?color=brightgreen" alt="Release"></a> &nbsp;
-<a href="#"><img src="https://img.shields.io/badge/Package_Size-6.24_Ko-success.svg" alt="Size"></a> &nbsp;
-<a href="https://github.com/Ruraam/debup/releases"><img src="https://img.shields.io/github/downloads/Ruraam/debup/total?color=blueviolet" alt="Total Downloads"></a>
-</div>
+### Le pont entre GitHub Releases et APT.
 
-<br/>
+**Découvrir · Inspecter · Installer · Suivre · Mettre à jour**
 
-<div align="center">
+Un gestionnaire de paquets léger en Bash qui relie les paquets Debian natifs aux fichiers `.deb` compatibles publiés sur GitHub.
 
-<a href="README.md"><img src="https://api.iconify.design/circle-flags/gb.svg" width="16" height="16" alt="English" style="vertical-align: middle;"> English</a> &nbsp;•&nbsp;
-<a href="README.fr.md"><img src="https://api.iconify.design/circle-flags/fr.svg" width="16" height="16" alt="Français" style="vertical-align: middle;"> Français</a> &nbsp;•&nbsp;
-<a href="README.es.md"><img src="https://api.iconify.design/circle-flags/es.svg" width="16" height="16" alt="Español" style="vertical-align: middle;"> Español</a>
+<p>
+<a href="https://github.com/Ruraam/debup/releases"><img src="https://img.shields.io/github/v/release/Ruraam/debup?style=for-the-badge&color=16a34a" alt="Dernière version"></a>
+<a href="https://github.com/Ruraam/debup/actions"><img src="https://img.shields.io/github/actions/workflow/status/Ruraam/debup/installer-validation.yml?branch=main&style=for-the-badge&label=CI" alt="CI"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-2563eb?style=for-the-badge" alt="GPL-3.0"></a>
+<a href="https://www.gnu.org/software/bash/"><img src="https://img.shields.io/badge/shell-Bash-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="Bash"></a>
+</p>
 
-</div>
+[English](README.md) · [Français](README.fr.md) · [Español](README.es.md)
 
-<div align="center">
+**[📘 Guide utilisateur (FR)](docs/GUIDE_FR.md)** · **[🇬🇧 User guide](docs/USER_GUIDE.md)** · [Versions](https://github.com/Ruraam/debup/releases) · [Problèmes](https://github.com/Ruraam/debup/issues)
 
-| [Utilisation](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-utilisation) | [Token GitHub](https://github.com/Ruraam/debup/blob/main/README.fr.md#-configurer-un-token-github-optionnel--dbp-token-) | [Recherche & Installation](https://github.com/Ruraam/debup/tree/main#-découverte-recherche--installation-de-paquets--dbp-search) | [Désinstallation](https://github.com/Ruraam/debup/tree/main#%EF%B8%8F-désinstallation) |
-| :---: | :---: | :---: | :---: |
-| [Configuration](https://github.com/Ruraam/debup/blob/main/README.fr.md#%EF%B8%8F-configuration) | [Captures d'écran](https://github.com/Ruraam/debup/tree/main#captures-décran) | [Changelog](https://github.com/Ruraam/debup/releases) | [Licence](LICENSE) |
-</div>
-
----
-> 🚀 **Découvrez mon nouveau projet :** [**ULPM & .lpk**](https://github.com/Ruraam/ulpm) — *Gestionnaire de paquets conteneurisé léger, sans root, sans démon pour Linux.*
-
----
-
-## <img src="https://api.iconify.design/lucide/package-check.svg?color=%23d70a53&width=30&height=30"> debup [ `dbp` ] - Le pont manquant entre GitHub & APT
-
-L'ergonomie d'AUR vous manque sur Debian/Ubuntu ? **debup** transforme les GitHub Releases en votre dépôt tiers personnel.
-**Découvrez, inspectez, installez et mettez à jour des paquets Debian directement depuis GitHub Releases avec la simplicité d'`apt`.**
-
-## ✨ Fonctionnalités clés
-
-### 🔍 Découverte unifiée & installation multiple [dbp -s <requête>] :
-
-• Recherche simultanément dans les dépôts APT Debian et les GitHub Releases depuis une seule requête terminal, pré-filtrée pour les binaires compatibles.
-
-• Prompt interactif multi-sélection supportant les plages et les listes séparées par des virgules (ex. 1 2 3, 1-3, 1,2,4) pour des installations groupées rapides.
-
-• Chaque résultat GitHub conserve l'identifiant exact de sa release et le nom du `.deb` compatible affiché. L'installation revalide cette même release et ce même asset au lieu de résoudre silencieusement une nouvelle release `latest`.
-
-• Le catalogue intégré ne contient que des sources GitHub Releases que debup sait valider et suivre. Les téléchargements directs sont exclus tant que leur intégrité et leur suivi des mises à jour ne sont pas entièrement pris en charge.
-
-#### 📦 Installation directe [dbp -i <owner/repo> / dbp -i <paquet>]:
-
-• Plus besoin de chercher les URLs de release. Pointez vers n'importe quel dépôt, debup détecte, associe votre architecture (amd64 / arm64), télécharge et installe le bon .deb.
-
-• Fonctionne aussi de manière transparente avec les paquets APT natifs (dbp -i bat).
-
-• Supporte l'épinglage de version à l'installation : dbp -i owner/repo@vX.Y.Z.
-
-• Supporte les installations automatisées non-interactives via -y / --yes.
-
-#### ℹ️ Aperçu des métadonnées [dbp -f <owner/repo>]:
-
-• Prévisualisez les métadonnées distantes avant de toucher votre système (nombre d'étoiles, licence SPDX, description, tag de release, date de publication et compatibilité d'architecture des assets).
-
-#### 🛡️ Audit de sécurité & inspection des scripts root [dbp -I <owner/repo>]:
-
-• Inspectez les scripts internes du mainteneur (preinst, postinst, prerm, postrm) et l'arborescence brute contenue dans n'importe quel .deb distant avant exécution.
-
-• Prompt interactif automatique vous alertant lorsqu'un paquet téléchargé contient des scripts de maintenance root avant installation.
-
-#### 🔒 Vérification d'intégrité automatisée :
-
-• Détecte et valide automatiquement les fichiers de checksums publiés (SHA256SUMS, checksums.txt, *.sha256) contre les binaires téléchargés avant d'invoquer dpkg.
-
-#### 🔄 Cycle de vie APT natif & mises à jour unifiées [dbp -u]:
-
-• Synchronise les dépôts APT et met à jour à la fois les paquets Debian natifs et les applications GitHub suivies dans un workflow unifié.
-
-• Suppression propre du suivi de paquet [dbp -r <paquet>] avec exécution automatisée du purge APT.
-
-#### 📊 Télémétrie & tableau de bord système [dbp -S]:
-
-• Vue en temps réel des paquets natifs installés, des paquets GitHub suivis, des paquets verrouillés, de l'empreinte du cache API, et du quota restant de l'API GitHub avec l'heure de réinitialisation.
-
-#### 🧹 Maintenance & nettoyage des caches [dbp -c]:
-
-• Nettoie les archives deb d'installation résiduelles dans /tmp, purge le cache de téléchargement d'APT, et réinitialise les caches de réponses locales obsolètes de l'API GitHub.
-
-#### 🧪 Mode simulation Dry-Run [-d / --dry-run]:
-
-• Prévisualise les téléchargements, mises à jour, opérations sur les dépôts, épinglages, désépinglages et nettoyages sans installer/supprimer de paquets ni modifier l'état d'APT.
-
-• Les requêtes GitHub en lecture seule restent possibles, mais le mode simulation n'écrit ni le cache API persistant ni la configuration du token. Les fichiers temporaires sont automatiquement nettoyés.
-
-• Pour les paquets GitHub, le mode simulation affiche la release sélectionnée et l'action prévue. Il ne télécharge pas le paquet et ne peut donc pas simuler entièrement la résolution des dépendances APT.
-
-### 🛡️ Sécurité des transactions APT
-
-• Avant d'installer un paquet GitHub téléchargé, debup simule la transaction APT et refuse tout plan qui supprimerait ou purgerait des paquets installés.
-
-• L'installation réelle utilise également la protection APT `--no-remove`.
-
-• La version du paquet Debian téléchargé est comparée au tag de release (si celui-ci est une version Debian valide) et à la version installée. Les versions identiques ou antérieures ne sont pas installées.
-
-#### ⚡ Suivi & cache API haut débit [dbp -t]:
-
-• Cache local de réponses API pour éliminer les requêtes redondantes et optimiser la bande passante.
-
-• Stockez en toute sécurité un token GitHub personnel (chmod 600) pour débloquer 5 000 req/h pour les recherches lourdes et les vérifications automatiques de mises à jour en arrière-plan.
-
-#### 💻 Bash completion natif :
-
-• Support de l'autocomplétion pour debup et l'alias dbp, avec suggestions dynamiques de paquets contextuelles pour remove, pin et unpin.
-
-#### 🛡️ Épinglage de paquets (apt-mark hold) :
-
-• Figer les mises à jour de paquets : verrouillez des paquets spécifiques à leur version actuelle via la commande pin [dbp -p <paquet>] pour empêcher les mises à jour non désirées.
-
-• Défiger les mises à jour : restaurez les mises à jour automatiques à tout moment avec unpin [dbp -n <paquet>].
-
-• Intégration APT native : s'appuie directement sur le mécanisme apt-mark standard de Debian, garantissant 100 % de cohérence avec les outils système natifs.
-
-### 🎯 Détection intelligente des assets
-
-`debup` sélectionne automatiquement le bon binaire `.deb` depuis les GitHub Releases, sans deviner :
-
-**Architectures flexibles :** associe les noms standard & alias :
-* **x86_64 :** `amd64`, `x86_64`, `x86-64`, `x64`, `all`
-* **ARM64 :** `arm64`, `aarch64`, `armv8`, `arm64v8`, `all`
-* **Protection cross-architecture :** filtre activement les assets conflictuels (ex. empêche de télécharger `arm64` sur une machine `amd64`).
-* **Priorisation de distribution :** préfère les builds spécifiques à la distribution (`debian` vs `ubuntu`) lorsque plusieurs paquets compatibles sont publiés.
-* **Fallback sécurisé :** abandonne proprement avec un avertissement explicite si aucun paquet compatible n'existe pour votre architecture CPU.
-
----
-
-## 📦 Installation
-
-### ⚡ Installation rapide interactive/non-interactive
-**Installeur Zero-Trust :** intègre une validation automatique fail-closed de l'empreinte GPG, une vérification d'intégrité SHA-256, et un support complet pour les prompts interactifs et les déploiements headless non-interactifs (`-y` / CI/CD).
-
-Lancez l'assistant d'installation interactif pour choisir votre méthode d'installation préférée (dépôt APT, dernière release, ou build depuis les sources) :
-```bash
-curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash
-```
-&nbsp;
-
-Lancez avec le flag `-y` pour des installations entièrement automatisées (par défaut sur la méthode recommandée du dépôt APT, sans prompts) :
-```bash
-curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash -s -- -y
-```
-<div align="center">
-<img src="assets/installer_menu1.jpg" width="200">
- 
 </div>
 
 ---
 
-### 🔑 Configurer un token GitHub (optionnel) [ `dbp token` ]
+## Pourquoi debup ?
 
-Par défaut, GitHub limite les requêtes anonymes à 60 requêtes/heure. Ajouter un token augmente cette limite à 5000 requêtes/heure.
+L'écosystème Debian est fiable. GitHub Releases héberge des milliers de projets upstream. debup relie ces deux univers dans un workflow basé sur APT : découvrir les paquets compatibles, les inspecter, les installer nativement et suivre leurs mises à jour.
 
-**1. Générez un token :**
-Allez sur GitHub > Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token (aucun scope/permission nécessaire, laissez tout décoché).
+> **Ce n'est pas un sandbox :** les paquets GitHub `.deb` sont installés comme des paquets natifs. Leurs scripts mainteneur peuvent s'exécuter avec les privilèges root.
 
-**2. Associez-le à debup :**
+## ✨ Fonctionnalités
+
+| Fonction | Description |
+|---|---|
+| 🔎 **Recherche unifiée** | Recherche simultanément dans APT et les GitHub Releases compatibles. |
+| 📦 **Installation directe** | Installe depuis APT ou un dépôt GitHub (`owner/repo`). |
+| 🎯 **Choix de release** | Cible un tag précis avec `owner/repo@tag`. |
+| 🔍 **Inspection** | Consulte les métadonnées, le contenu et les scripts mainteneur. |
+| 🔐 **Intégrité** | Vérifie les sommes SHA-256 publiées avant l'installation des paquets téléchargés. |
+| 🛡️ **Garde-fous APT** | Simule les transactions concernées, refuse les plans de suppression et utilise `--no-remove` lorsque cela s'applique. |
+| 🔄 **Suivi des mises à jour** | Vérifie les applications GitHub suivies avec les mises à jour APT natives. |
+| 🧪 **Dry-run** | Prévisualise les opérations compatibles avant application. |
+| 📌 **Verrouillage** | Utilise `apt-mark hold/unhold`. |
+| 🌍 **Traductions** | CLI en EN, FR, DE, ES, IT et PT. |
+
+## 🚀 Installation
+
+**Installeur interactif (recommandé) :**
+
 ```bash
-dbp token <ghtoken>
-```
-`debup` le détectera et l'utilisera automatiquement, augmentant votre limite à 5 000 requêtes par heure.
-
-> ***🔒 Note de sécurité :***
-> - **Stockage au niveau utilisateur (par défaut) :** le token est écrit dans `${XDG_CONFIG_HOME:-$HOME/.config}/debup/token` avec `chmod 600`. Aucune élévation requise — `debup` fonctionne entièrement en tant qu'utilisateur normal.
-> - **Stockage au niveau root (optionnel) :** si `debup` est invoqué en root, le token est également dupliqué dans `/etc/debup/debup.conf` avec `chmod 600`, pour une disponibilité système.
-> - Dans les deux cas, seul le propriétaire du fichier (ou root) peut le lire.
-
----
-
-## 🛠️ Utilisation
-
-### Gestion des paquets
-**Ajouter un dépôt pour installer un `.deb` & le suivre :**
-```bash
-dbp -a <owner>/<repo>
-```
-par exemple :
-```bash
-dbp -a Ruraam/Uraam
+curl -fsSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash
 ```
 
-**Lister les dépôts suivis**
-```bash
-dbp -l
-```
-**Supprimer un dépôt suivi**
-```bash
-dbp -r <nom-du-paquet>
-```
-
-**Empêcher une application de se mettre à jour**
-```bash
-dbp -p <nom-du-paquet>
-```
-**Autoriser une application à se mettre à jour à nouveau**
-```bash
-dbp -n <nom-du-paquet>
-```
-
-
-### Mises à jour/Upgrade des paquets
-**Télécharger et mettre à jour les paquets suivis avec confirmation (avec & sans dépôt APT)**
-```bash
-dbp -u [-y]
-```
-**Mettre à jour debup via le dépôt APT :**
-```bash
-sudo apt update && sudo apt upgrade debup
-```
-
-### 🔄 Vérification rapide des mises à jour (action par défaut)
-
-Lancer `dbp` **sans argument** déclenche une vérification rapide et non destructive des mises à jour sur les dépôts APT et les paquets GitHub suivis :
+**Installation non interactive :**
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bash -s -- --yes
+```
+
+L'installeur présente les méthodes disponibles et vérifie l'empreinte de la clé du dépôt APT ainsi que les sommes des paquets téléchargés. Lisez l'installeur et ses avertissements de confiance avant exécution.
+
+**Mise à niveau via APT :**
+
+```bash
+sudo apt update
+sudo apt upgrade debup
+```
+
+Pour les installations depuis une release ou les sources :
+
+```bash
+dbp upgrade
+```
+
+## ⚡ Démarrage rapide
+
+```bash
+# Rechercher dans les deux sources
+dbp search terminal
+
+# Inspecter un projet avant installation
+dbp info Ruraam/Uraam
+dbp inspect Ruraam/Uraam
+
+# Installer et suivre un paquet GitHub
+dbp install Ruraam/Uraam
+
+# Installer un paquet APT natif
+dbp install ripgrep
+
+# Vérifier les mises à jour (action par défaut)
 dbp
+
+# Appliquer les mises à jour disponibles
+dbp upgrade
+
+# Prévisualiser sans appliquer les changements
+dbp upgrade --dry-run
+
+# Lister les sources GitHub suivies
+dbp list
 ```
 
-Cela se comporte exactement comme `dbp update` (ou `dbp -v`) et affiche un résumé unifié :
+Pour installer une release précise : `dbp install proprietaire/depot@tag`.
 
-- Nombre de paquets APT pouvant être mis à jour
-- Nombre de paquets GitHub suivis avec une release plus récente
-- Une suggestion d'exécuter `dbp upgrade` pour appliquer les changements
+## 🧭 Référence des commandes
 
-Pas de prompts, pas d'installation — un coup d'œil rapide sur l'état. Parfait pour cron, les hooks MOTD, ou une vérification rapide avant `dbp -u`.
+| Commande | Alias | Action |
+|---|---|---|
+| `install <repo/paquet>` | `-i`, `-a` | Installer un paquet GitHub ou APT |
+| `search <requête>` | `-s` | Rechercher dans APT et GitHub |
+| `info <owner/repo>` | `-f` | Afficher les métadonnées et assets |
+| `inspect <owner/repo>` | `-I` | Inspecter les fichiers et scripts |
+| `update` | `-v`, sans argument | Vérifier les mises à jour |
+| `upgrade` | `-u` | Appliquer les mises à jour |
+| `list` | `-l` | Lister les sources suivies |
+| `remove <paquet>` | `-r` | Purger et retirer le suivi |
+| `pin <paquet>` / `unpin <paquet>` | `-p` / `-n` | Bloquer ou débloquer un paquet |
+| `stats` | `-S` | État des paquets, caches et API |
+| `token [PAT]` | `-t` | Configurer un token GitHub |
+| `clean` | `-c` | Nettoyer les caches pris en charge |
+| `help` | `-h` | Afficher l'aide |
 
-### 🛡️ Audit & Inspection
+Les options sont spécifiques aux commandes : `--dry-run` / `-d` prévisualise les opérations compatibles ; `--yes` / `-y` accepte les confirmations prises en charge. Lancez `dbp help` pour obtenir l'aide exacte de votre version.
 
-Inspectez les scripts du mainteneur (`preinst`, `postinst`, `prerm`, `postrm`) et le contenu du paquet **avant** installation :
+## 🔐 Modèle de sécurité
 
-```bash
-dbp -I <owner>/<repo>
-```
+- L'installeur APT épingle l'empreinte primaire GPG attendue avant de faire confiance à la clé du dépôt.
+- Les téléchargements GitHub Releases sont comparés aux sommes SHA-256 publiées lorsque celles-ci sont disponibles.
+- Une somme prouve la cohérence avec le fichier de checksum publié ; elle n'authentifie pas à elle seule l'éditeur.
+- Les scripts mainteneur Debian peuvent s'exécuter en root. Inspectez les paquets inconnus avec `dbp inspect`.
+- debup simule les transactions APT concernées et refuse les plans supprimant des paquets installés ; `--no-remove` est aussi utilisé lorsque cela s'applique.
+- Les paquets installés sont natifs. **debup ne sandboxe pas les applications.**
 
-Utile pour vérifier ce qu'un `.deb` fera à votre système avant de lui faire confiance.
+Consultez **[Sécurité, vérification et limites](docs/GUIDE_FR.md#inspection-et-intégrité)** avant d'installer un logiciel provenant d'un éditeur inconnu.
 
-### 🧪 Simulation Dry-Run
+## 📚 Documentation
 
-Prévisualisez n'importe quelle action sans modifier votre système :
+- **[Guide utilisateur et administrateur (FR)](docs/GUIDE_FR.md)**
+- **[User & administrator guide (EN)](docs/USER_GUIDE.md)**
+- [Historique des versions](https://github.com/Ruraam/debup/releases)
+- [GitHub Actions](https://github.com/Ruraam/debup/actions)
+- [Signaler un problème](https://github.com/Ruraam/debup/issues)
 
-```bash
-dbp -u -d
-dbp -i <owner>/<repo> --dry-run
-```
+## 📡 Publication du dépôt APT
 
-Supporte toutes les commandes destructives : `install`, `upgrade`, `remove`, `pin`, `unpin`, `clean`.
+Les releases GitHub stables sont configurées pour déclencher le publisher APT réutilisable après la construction du paquet Debian. Les pré-releases sont exclues. La publication nécessite le secret GitHub `GPG_PRIVATE_KEY`, dont l'empreinte primaire doit correspondre à celle épinglée dans l'installeur.
 
-### 🧹 Nettoyage système
+Une CI de validation verte ne prouve pas à elle seule qu'un déploiement Pages réel ou une installation cliente a réussi. La prochaine release stable devra valider toute la chaîne de publication, de signature et d'installation APT.
 
-Purge les caches APT et les caches de réponses obsolètes de l'API GitHub :
+## 🧩 Compatibilité
 
-```bash
-dbp -c
-```
+debup cible Debian et les systèmes basés sur Ubuntu utilisant APT et dpkg. Le paquet debup est indépendant de l'architecture ; la sélection des binaires GitHub vérifie l'architecture de la machine et les alias de nommage pris en charge. La compatibilité avec d'autres dérivées peut varier.
 
-Libère de l'espace disque et élimine les requêtes réseau redondantes pour les prochaines opérations.
+## 🤝 Contribution
 
-### 🔍 Découverte, recherche & installation de paquets [ `dbp search`] 
-
-Trouvez & découvrez n'importe quel projet GitHub fournissant des paquets .deb compatibles avec votre architecture et installez-le en un clic :
-Prévisualisez les informations du dépôt :
-```bash
-dbp -f <owner>/<repo>
-```
-##### Exemple : dbp -f Ruraam/Uraam
-
-```bash
-dbp -s <mot-clé>
-```
-##### Exemple : [ `dbp -s uraam`] 
-**Comment ça fonctionne :**
-
-Entrez le numéro du paquet dans la liste et appuyez sur Entrée. debup télécharge le .deb correspondant, l'installe via apt, et l'ajoute automatiquement à votre liste de suivi pour les futures mises à jour.
-
-<p align="center">
-<img src="/assets/debup_search1.png" width="200"> <img src="/assets/debup_search2.png" width="200"> <img src="/assets/debup_search3.png" width="200"></p>
-
----
-
-## Alias courts des flags CLI : flags POSIX single-letter standard pour des workflows terminal rationalisés :
-[-a : add / install] [-u : update / upgrade] [-r : remove] [-p : pin] [-n : unpin] [-s : search] [-f : info / show] [-I : inspect / audit] [-l : list] [-t : token / auth] [-S : stats] [-c : clean] [-d : dry-run]
-
----
-
-## ⚙️ Configuration
-
-**Les sources suivies sont stockées dans :** `/etc/debup/sources.list`
-
-**Format :** `<nom-du-paquet>|<utilisateur-github>/<dépôt-github>`
-
-**Le token GitHub est stocké dans :**
-- `${XDG_CONFIG_HOME:-$HOME/.config}/debup/token` (niveau utilisateur, par défaut)
-- `/etc/debup/debup.conf` (niveau root, lorsque `debup` est lancé en root)
-
----
-
-## 🗑️ Désinstallation
-**Supprimer le paquet (sudo)**
-```bash
-dbp -r debup [-y]
-```
-Prompté pour la configuration du purge ou non.
-
-ou
-```bash
-sudo apt remove debup [-y]
-```
-**Supprimer le paquet et nettoyer la configuration**
-```bash
-sudo apt --purge debup [-y]
-```
-
----
-
-## Captures d'écran
-<p align="center">
-<img src="/assets/debup_1.png" width="400"> <img src="/assets/debup_2.png" width="400"> <img src="/assets/debup3.png" width="400"> <img src="/assets/debup4.png" width="400"></p>
-
----
+Les pull requests ciblées, rapports de bugs reproductibles et cas de test sont les bienvenus. Indiquez la distribution, l'architecture, la version de debup et la commande/sortie exacte lors d'un signalement.
 
 ## 📄 Licence
 
-Ce projet est sous licence [GNU General Public License v3.0](LICENSE).
+[GNU General Public License v3.0](LICENSE).
 
----
+<div align="center">
 
-*[Universal Linux Package Manager [ULPM] :](https://github.com/Ruraam/ulpm) 3⭐ - Runtime `application/OS read-only` sandboxé, léger, sans root, sans démon, pour toute distribution Linux. Plus léger que Flatpak ou Snap.*
+**Conçu pour Debian. Connecté aux projets upstream.** 🐧
 
-*[Universal Ruvomain ADB App Manager [URAAM] :](https://github.com/Ruraam/Uraam) 50⭐ - Une boîte à outils shell tout-en-un pour le `débloatage Android`. Désinstallez/désactivez vos applications, sauvegardez votre fichier JSON de débloat & restaurez, installez des APK. Fonctionne avec `Termux WirelessADB, Shizuku, Root`, `Linux Debian, Arch, Fedora, macOS & WSL`. Compatible avec les listes JSON Canta/UAD.*
-
----
-
-*Fait avec 🐧 Debian, ☕ café, et une quantité déraisonnable de `bash -n`.*
+</div>
