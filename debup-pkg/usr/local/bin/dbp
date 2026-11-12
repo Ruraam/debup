@@ -1455,7 +1455,13 @@ debup_remove() {
         case "$1" in
             -y|--yes) ASSUME_YES="true" ;;
             -*) echo -e "${RED}${MSG_ERR_UNKNOWN_OPTION:-Option inconnue}: $1${NC}" >&2; return 1 ;;
-            *) PKG="$1" ;;
+            *)
+                if [ -n "$PKG" ]; then
+                    echo -e "${RED}✖ Only one package may be specified for this command.${NC}" >&2
+                    return 1
+                fi
+                PKG="$1"
+                ;;
         esac
         shift
     done
@@ -1520,7 +1526,17 @@ case "$1" in
         while [ "$#" -gt 0 ]; do
             case "$1" in
                 -y|--yes) ASSUME_YES="true" ;;
-                *) TARGET="$1" ;;
+                -*)
+                    echo -e "${RED}${MSG_ERR_UNKNOWN_OPTION:-Unknown option}: $1${NC}" >&2
+                    exit 1
+                    ;;
+                *)
+                    if [ -n "$TARGET" ]; then
+                        echo -e "${RED}✖ Only one package or repository may be specified for this command.${NC}" >&2
+                        exit 1
+                    fi
+                    TARGET="$1"
+                    ;;
             esac
             shift
         done
@@ -1555,6 +1571,10 @@ case "$1" in
         while [ "$#" -gt 0 ]; do
             case "$1" in
                 -y|--yes) ASSUME_YES="true" ;;
+                *)
+                    echo -e "${RED}${MSG_ERR_UNKNOWN_OPTION:-Unknown option}: $1${NC}" >&2
+                    exit 1
+                    ;;
             esac
             shift
         done
@@ -1657,9 +1677,10 @@ case "$1" in
         ;;
 
     pin|-p)
-        PKG="$2"
+        shift
+        [ "$#" -ne 1 ] && { echo -e "${YELLOW}${MSG_USAGE_PIN}${NC}" >&2; exit 1; }
+        PKG="$1"
         echo -e "${BLUE}---------------------------------------${NC}"
-        [ -z "$PKG" ] && { echo -e "${YELLOW}${MSG_USAGE_PIN}${NC}"; exit 1; }
         if [ "$DRY_RUN" = "true" ]; then
             printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_PIN" "${PKG}")"
             exit 0
@@ -1670,9 +1691,10 @@ case "$1" in
         ;;
 
     unpin|-n)
-        PKG="$2"
+        shift
+        [ "$#" -ne 1 ] && { echo -e "${YELLOW}${MSG_USAGE_UNPIN}${NC}" >&2; exit 1; }
+        PKG="$1"
         echo -e "${BLUE}---------------------------------------${NC}"
-        [ -z "$PKG" ] && { echo -e "${YELLOW}${MSG_USAGE_UNPIN}${NC}"; exit 1; }
         if [ "$DRY_RUN" = "true" ]; then
             printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_UNPIN" "${PKG}")"
             exit 0
