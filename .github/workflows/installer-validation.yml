@@ -153,6 +153,11 @@ jobs:
           grep -Fq 'DEB_VERSION=$(dpkg-deb -f "$DEB_FILE" Version' installer.sh
           ! grep -Fq 'Falling back to first .deb' installer.sh
           grep -Fq 'Architectures: amd64 arm64 armhf i386' .github/workflows/apt-repo.yml
+          grep -Fq 'expected_version="${RELEASE_TAG#v}"' .github/workflows/apt-repo.yml
+          grep -Fq '[[ "$package_arch" == "all" ]]' .github/workflows/apt-repo.yml
+          grep -Fq '[[ "$package_version" == "$expected_version" ]]' .github/workflows/apt-repo.yml
+          grep -Fq 'expected_fingerprint="0F43E2925658EB3CAC8BA4B6B3C2F87E36A62AE2"' .github/workflows/apt-repo.yml
+          grep -Fq 'installer-pinned fingerprint' .github/workflows/apt-repo.yml
           grep -Fq 'chmod 700 "$user_conf_dir"' debup-pkg/usr/local/bin/debup
           grep -Fq 'mv -f -- "$user_tmp" "$user_conf_dir/token"' debup-pkg/usr/local/bin/debup
           grep -Fq 'debup_info() {' debup-pkg/usr/local/bin/debup
