@@ -349,16 +349,61 @@ set_github_token() {
         return 1
     fi
 
+    # GitHub tokens are opaque ASCII credentials; reject whitespace and shell
+    # metacharacters before writing the legacy shell-style configuration file.
+    if [[ ! "$token" =~ ^[A-Za-z0-9_]+$ ]]; then
+        echo -e "${RED}✖ Invalid token format; refusing to store unsafe characters.${NC}" >&2
+        return 1
+    fi
+
     local user_conf_dir="${XDG_CONFIG_HOME:-$HOME/.config}/debup"
-    mkdir -p -m 700 "$user_conf_dir" 2>/dev/null || mkdir -p "$user_conf_dir"
-    echo "$token" > "$user_conf_dir/token"
-    chmod 600 "$user_conf_dir/token"
+    local user_tmp=""
+    local root_tmp=""
+    local old_umask
+    old_umask=$(umask)
+    umask 077
+
+    if ! mkdir -p "$user_conf_dir" || ! chmod 700 "$user_conf_dir"; then
+        umask "$old_umask"
+        echo -e "${RED}✖ Unable to secure the user configuration directory.${NC}" >&2
+        return 1
+    fi
+    user_tmp=$(mktemp "${user_conf_dir}/.token.XXXXXX") || {
+        umask "$old_umask"
+        echo -e "${RED}✖ Unable to create a temporary token file.${NC}" >&2
+        return 1
+    }
+    if ! printf '%s\\n' "$token" > "$user_tmp" ||
+       ! chmod 600 "$user_tmp" ||
+       ! mv -f -- "$user_tmp" "$user_conf_dir/token"; then
+        rm -f -- "$user_tmp"
+        umask "$old_umask"
+        echo -e "${RED}✖ Unable to atomically store the user token.${NC}" >&2
+        return 1
+    fi
 
     if [ "$(id -ru)" -eq 0 ]; then
-        $ELEVATE mkdir -p "$CONF_DIR"
-        echo "GITHUB_TOKEN=\"$token\"" | $ELEVATE tee "$CONF_DIR/debup.conf" >/dev/null
-        $ELEVATE chmod 600 "$CONF_DIR/debup.conf"
+        if ! $ELEVATE mkdir -p "$CONF_DIR"; then
+            umask "$old_umask"
+            echo -e "${RED}✖ Unable to create the system configuration directory.${NC}" >&2
+            return 1
+        fi
+        root_tmp=$($ELEVATE mktemp "${CONF_DIR}/.debup.conf.XXXXXX") || {
+            umask "$old_umask"
+            echo -e "${RED}✖ Unable to create a temporary system token file.${NC}" >&2
+            return 1
+        }
+        if ! printf 'GITHUB_TOKEN="%s"\\n' "$token" | $ELEVATE tee "$root_tmp" >/dev/null ||
+           ! $ELEVATE chmod 600 "$root_tmp" ||
+           ! $ELEVATE mv -f -- "$root_tmp" "$CONF_DIR/debup.conf"; then
+            $ELEVATE rm -f -- "$root_tmp" 2>/dev/null || true
+            umask "$old_umask"
+            echo -e "${RED}✖ Unable to atomically store the system token.${NC}" >&2
+            return 1
+        fi
     fi
+
+    umask "$old_umask"
 
     echo -e "${BLUE}---------------------------------------${NC}"
     echo -e "${GREEN}${MSG_TOKEN_SUCCESS:-GitHub Token configured successfully.}${NC}"
