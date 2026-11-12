@@ -139,6 +139,8 @@ jobs:
           grep -Fq 'Expected exactly one primary GPG key' installer.sh
           grep -Fq 'if (filename == name)' installer.sh
           grep -Fq 'Unable to determine the system architecture' installer.sh
+          grep -Fq 'select_release_deb_url' installer.sh
+          grep -Fq "'dpkg-deb' is required to validate downloaded packages" installer.sh
           grep -Fq 'APT package index update failed' installer.sh
           grep -Fq 'Failed to set executable permissions' installer.sh
           grep -Fq 'mktemp -d' scripts/sync_catalog.sh
