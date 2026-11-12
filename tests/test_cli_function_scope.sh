@@ -55,9 +55,9 @@ PATH="$TEST_DIR/mock-bin:$PATH"
 export PATH
 export HOME="$TEST_DIR/home"
 export XDG_CONFIG_HOME="$TEST_DIR/home/config"
-CONF_DIR="$TEST_DIR/etc/debup"
-ELEVATE=""
-DRY_RUN=false
+export CONF_DIR="$TEST_DIR/etc/debup"
+export ELEVATE=""
+export DRY_RUN=false
 
 awk '
     /^set_github_token\(\) \{$/ { capture = 1 }
