@@ -210,7 +210,7 @@ one_exact='{"assets":[{"name":"debup.deb.sha256","browser_download_url":"https:/
 
 duplicate_exact='{"assets":[{"name":"debup.deb.sha256","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/a"},{"name":"debup.deb.sha256","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/b"}]}'
 if find_checksum_url "$duplicate_exact" "debup.deb" >/dev/null 2>&1; then
-    printf 'FAIL: ambiguous exact checksum assets were accepted\\n' >&2
+    printf 'FAIL: ambiguous exact checksum assets were accepted\n' >&2
     exit 1
 fi
 
@@ -219,7 +219,7 @@ one_generic='{"assets":[{"name":"SHA256SUMS","browser_download_url":"https://git
 
 duplicate_generic='{"assets":[{"name":"SHA256SUMS","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/SHA256SUMS"},{"name":"checksums.txt","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/checksums.txt"}]}'
 if find_checksum_url "$duplicate_generic" "debup.deb" >/dev/null 2>&1; then
-    printf 'FAIL: ambiguous generic checksum assets were accepted\\n' >&2
+    printf 'FAIL: ambiguous generic checksum assets were accepted\n' >&2
     exit 1
 fi
 
@@ -227,18 +227,18 @@ fallback='{"assets":[{"name":"tool.sha256","browser_download_url":"https://githu
 [[ "$(find_checksum_url "$fallback" "debup.deb")" == "https://github.com/Ruraam/debup/releases/download/v1/tool.sha256" ]]
 
 if find_checksum_url '{"assets":[]}' "debup.deb" >/dev/null 2>&1; then
-    printf 'FAIL: missing checksum assets were accepted\\n' >&2
+    printf 'FAIL: missing checksum assets were accepted\n' >&2
     exit 1
 fi
 if find_checksum_url '{"assets":[{"name":"SHA256SUMS","browser_download_url":"http://github.com/Ruraam/debup/SHA256SUMS"}]}' "debup.deb" >/dev/null 2>&1; then
-    printf 'FAIL: non-HTTPS checksum asset URL was accepted\\n' >&2
+    printf 'FAIL: non-HTTPS checksum asset URL was accepted\n' >&2
     exit 1
 fi
 if find_checksum_url '{"invalid":true}' "debup.deb" >/dev/null 2>&1; then
-    printf 'FAIL: malformed release metadata was accepted\\n' >&2
+    printf 'FAIL: malformed release metadata was accepted\n' >&2
     exit 1
 fi
 
-printf 'PASS: installer checksum asset selection and ambiguity rejection\\n'
+printf 'PASS: installer checksum asset selection and ambiguity rejection\n'
 
 printf 'PASS: Debian metadata, checksums, release asset validation, version comparisons, APT transaction and atomic download tests\n'
