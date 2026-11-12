@@ -17,6 +17,7 @@ on:
       - ".github/workflows/sync-catalog.yml"
       - "tests/test_package_scripts.sh"
       - "tests/test_cli_function_scope.sh"
+      - "tests/test_cli_arguments.sh"
       - "debup-pkg/DEBIAN/**"
       - "debup-pkg/usr/local/bin/**"
       - ".github/workflows/apt-repo.yml"
@@ -35,6 +36,7 @@ on:
       - ".github/workflows/sync-catalog.yml"
       - "tests/test_package_scripts.sh"
       - "tests/test_cli_function_scope.sh"
+      - "tests/test_cli_arguments.sh"
       - "debup-pkg/DEBIAN/**"
       - "debup-pkg/usr/local/bin/**"
       - ".github/workflows/apt-repo.yml"
@@ -70,6 +72,7 @@ jobs:
           bash -n debup-pkg/usr/local/share/debup/package_validation.sh
           bash -n tests/test_package_scripts.sh
           bash -n tests/test_cli_function_scope.sh
+          bash -n tests/test_cli_arguments.sh
           bash -n debup-pkg/DEBIAN/postinst
           bash -n debup-pkg/DEBIAN/postrm
           bash -n debup-pkg/usr/local/bin/debup
@@ -88,6 +91,7 @@ jobs:
           shellcheck --severity=error debup-pkg/usr/local/share/debup/package_validation.sh
           shellcheck --severity=error tests/test_package_scripts.sh
           shellcheck --severity=error tests/test_cli_function_scope.sh
+          shellcheck --severity=error tests/test_cli_arguments.sh
           shellcheck --severity=error debup-pkg/DEBIAN/postinst
           shellcheck --severity=error debup-pkg/DEBIAN/postrm
           shellcheck --severity=error debup-pkg/usr/local/bin/debup
@@ -241,6 +245,7 @@ jobs:
           bash -n tests/test_api_cache.sh
           bash -n tests/test_package_scripts.sh
           bash -n tests/test_cli_function_scope.sh
+          bash -n tests/test_cli_arguments.sh
           bash -n debup-pkg/DEBIAN/postinst
           bash -n debup-pkg/DEBIAN/postrm
           bash -n debup-pkg/usr/local/bin/debup
@@ -259,6 +264,7 @@ jobs:
           bash tests/test_sync_catalog.sh
           bash tests/test_package_scripts.sh
           bash tests/test_cli_function_scope.sh
+          bash tests/test_cli_arguments.sh
           cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
 
       - name: Build, install, and purge the DEB package
@@ -340,6 +346,7 @@ jobs:
               bash -n tests/test_sync_catalog.sh
               bash -n tests/test_package_scripts.sh
               bash -n tests/test_cli_function_scope.sh
+          bash -n tests/test_cli_arguments.sh
               bash -n debup-pkg/DEBIAN/postinst
               bash -n debup-pkg/DEBIAN/postrm
               bash -n debup-pkg/usr/local/bin/debup
@@ -351,6 +358,7 @@ jobs:
               bash tests/test_sync_catalog.sh
               bash tests/test_package_scripts.sh
               bash tests/test_cli_function_scope.sh
+          bash tests/test_cli_arguments.sh
               cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
 
               work_dir="$(mktemp -d)"
