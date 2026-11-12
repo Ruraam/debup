@@ -241,4 +241,44 @@ fi
 
 printf 'PASS: installer checksum asset selection and ambiguity rejection\n'
 
+
+# Installer release package selection must never fall back to an incompatible .deb.
+selector_file="$TEST_DIR/select_release_deb_url.sh"
+awk '
+    /^select_release_deb_url\(\) \{/ { capture=1 }
+    capture { print }
+    capture && /^\}$/ { exit }
+' "$ROOT_DIR/installer.sh" > "$selector_file"
+[[ -s "$selector_file" ]]
+# shellcheck source=/dev/null
+source "$selector_file"
+
+multiarch_release='{"assets":[{"name":"debup_amd64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup_amd64.deb"},{"name":"debup_arm64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup_arm64.deb"},{"name":"debup_all.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup_all.deb"}]}'
+[[ "$(select_release_deb_url "$multiarch_release" amd64)" == "https://github.com/Ruraam/debup/releases/download/v1/debup_amd64.deb" ]]
+[[ "$(select_release_deb_url "$multiarch_release" arm64)" == "https://github.com/Ruraam/debup/releases/download/v1/debup_arm64.deb" ]]
+[[ "$(select_release_deb_url "$multiarch_release" i386)" == "https://github.com/Ruraam/debup/releases/download/v1/debup_all.deb" ]]
+
+armhf_release='{"assets":[{"name":"debup_armv7l.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup_armv7l.deb"}]}'
+[[ "$(select_release_deb_url "$armhf_release" armhf)" == "https://github.com/Ruraam/debup/releases/download/v1/debup_armv7l.deb" ]]
+
+wrong_arch_release='{"assets":[{"name":"debup_arm64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup_arm64.deb"}]}'
+if select_release_deb_url "$wrong_arch_release" amd64 >/dev/null 2>&1; then
+    printf 'FAIL: incompatible architecture fallback was accepted\\n' >&2
+    exit 1
+fi
+
+ambiguous_arch_release='{"assets":[{"name":"debup_amd64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/a.deb"},{"name":"debup-x86_64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/b.deb"}]}'
+if select_release_deb_url "$ambiguous_arch_release" amd64 >/dev/null 2>&1; then
+    printf 'FAIL: ambiguous architecture assets were accepted\\n' >&2
+    exit 1
+fi
+
+external_arch_release='{"assets":[{"name":"debup_amd64.deb","browser_download_url":"https://attacker.invalid/debup_amd64.deb"}]}'
+if select_release_deb_url "$external_arch_release" amd64 >/dev/null 2>&1; then
+    printf 'FAIL: external package download URL was accepted\\n' >&2
+    exit 1
+fi
+
+printf 'PASS: installer architecture-aware release asset selection\\n'
+
 printf 'PASS: Debian metadata, checksums, release asset validation, version comparisons, APT transaction and atomic download tests\n'
