@@ -113,7 +113,7 @@ jobs:
             done
           done
 
-          "$requested_found" == "true" || {
+          [[ "$requested_found" == "true" ]] || {
             echo "Error: Requested release $RELEASE_TAG is not a published stable release." >&2
             exit 1
           }
