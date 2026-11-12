@@ -290,51 +290,20 @@ find_checksum_url() {
     local -a candidates=()
     mapfile -t candidates <<< "$matches"
     if [[ "${#candidates[@]}" -ne 1 ]]; then
-        printf 'Ambiguous checksum assets: expected exactly one candidate at the selected priority, found %s.\\n' "${#candidates[@]}" >&2
+        printf 'Ambiguous checksum assets: expected exactly one candidate at the selected priority, found %s.\n' "${#candidates[@]}" >&2
         return 1
     fi
 
     local asset_name asset_url
-    IFS=$'\\t' read -r asset_name asset_url <<< "${candidates[0]}"
-    if [[ -z "$asset_name" || ! "$asset_url" =~ ^https://github\\.com/ ]]; then
+    IFS=$'\t' read -r asset_name asset_url <<< "${candidates[0]}"
+    if [[ -z "$asset_name" || ! "$asset_url" =~ ^https://github\.com/ ]]; then
         echo "Invalid checksum asset metadata or non-GitHub HTTPS URL." >&2
         return 1
     fi
 
-    printf '%s\\n' "$asset_url"
+    printf '%s\n' "$asset_url"
 }
 
-# ==========================================================
-find_checksum_url() {
-    local release_json="$1"
-    local deb_name="$2"
-    local url
-
-    url=$(echo "$release_json" | jq -r --arg n "$deb_name" '
-        .assets[]
-        | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum"))
-        | .browser_download_url
-    ' | head -n1)
-    [ -n "$url" ] && { echo "$url"; return 0; }
-
-    url=$(echo "$release_json" | jq -r '
-        .assets[]
-        | select(.name | test("^(checksums?|SHA256SUMS|sha256sums)(\\.txt)?$"; "i"))
-        | .browser_download_url
-    ' | head -n1)
-    [ -n "$url" ] && { echo "$url"; return 0; }
-
-    url=$(echo "$release_json" | jq -r '
-        .assets[]
-        | select(.name | test("\\.sha256$"; "i"))
-        | .browser_download_url
-    ' | head -n1)
-    [ -n "$url" ] && { echo "$url"; return 0; }
-
-    return 1
-}
-
-# ==========================================================
 # Auto-tracking after install (options 2/3)
 # ==========================================================
 ensure_debup_tracked() {
