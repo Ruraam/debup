@@ -44,7 +44,7 @@ jobs:
           # irrelevant to reprepro; every package version is indexed.
           mapfile -t release_tags < <(
             gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name'
+              --jq '.[] | select(.draft == false and .prerelease == false and any(.assets[]?; .name | endswith(".deb"))) | .tag_name'
           )
 
           (("${#release_tags[@]}" > 0)) || {
@@ -58,13 +58,13 @@ jobs:
             release_dir="debs/$tag"
             mkdir -p "$release_dir"
 
-            if ! gh release download "$tag" \
+            gh release download "$tag" \
               --pattern "*.deb" \
               --pattern "SHA256SUMS" \
-              --dir "$release_dir"; then
-              echo "Warning: No downloadable DEB assets for $tag; skipping." >&2
-              continue
-            fi
+              --dir "$release_dir" || {
+                echo "Error: Failed to download DEB assets for stable release $tag." >&2
+                exit 1
+              }
 
             mapfile -t packages < <(
               find "$release_dir" -maxdepth 1 -type f -name '*.deb' -print | sort
