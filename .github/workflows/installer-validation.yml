@@ -185,6 +185,14 @@ jobs:
             image: ubuntu:24.04
     timeout-minutes: 25
     steps:
+      - name: Bootstrap Git for checkout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -193,9 +201,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            bash ca-certificates curl dpkg-dev git jq
+          apt-get install -y --no-install-recommends bash curl dpkg-dev jq
 
       - name: Validate Bash syntax
         shell: bash
