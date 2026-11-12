@@ -247,6 +247,67 @@ verify_sha256() {
 find_checksum_url() {
     local release_json="$1"
     local deb_name="$2"
+    local matches
+    local url
+
+    # A malformed release payload must never be interpreted as an empty asset list.
+    if ! jq -e '.assets | type == "array"' >/dev/null 2>&1 <<< "$release_json"; then
+        echo "Invalid GitHub release asset metadata." >&2
+        return 1
+    fi
+
+    # Resolve one priority class at a time. Multiple candidates at the same
+    # priority are ambiguous and must fail closed instead of choosing head -n1.
+    matches=$(jq -r --arg n "$deb_name" '
+        [.assets[]
+         | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum"))
+         | [.name, .browser_download_url]]
+        | .[]
+        | @tsv
+    ' <<< "$release_json") || return 1
+    if [[ -n "$matches" ]]; then
+        :
+    else
+        matches=$(jq -r '
+            [.assets[]
+             | select(.name | test("^(checksums?|SHA256SUMS|sha256sums)(\\.txt)?$"; "i"))
+             | [.name, .browser_download_url]]
+            | .[]
+            | @tsv
+        ' <<< "$release_json") || return 1
+    fi
+    if [[ -z "$matches" ]]; then
+        matches=$(jq -r --arg n "$deb_name" '
+            [.assets[]
+             | select(.name | test("\\.sha256$"; "i"))
+             | [.name, .browser_download_url]]
+            | .[]
+            | @tsv
+        ' <<< "$release_json") || return 1
+    fi
+
+    [[ -n "$matches" ]] || return 1
+    local -a candidates=()
+    mapfile -t candidates <<< "$matches"
+    if [[ "${#candidates[@]}" -ne 1 ]]; then
+        printf 'Ambiguous checksum assets: expected exactly one candidate at the selected priority, found %s.\\n' "${#candidates[@]}" >&2
+        return 1
+    fi
+
+    local asset_name asset_url
+    IFS=$'\\t' read -r asset_name asset_url <<< "${candidates[0]}"
+    if [[ -z "$asset_name" || ! "$asset_url" =~ ^https://github\\.com/ ]]; then
+        echo "Invalid checksum asset metadata or non-GitHub HTTPS URL." >&2
+        return 1
+    fi
+
+    printf '%s\\n' "$asset_url"
+}
+
+# ==========================================================
+find_checksum_url() {
+    local release_json="$1"
+    local deb_name="$2"
     local url
 
     url=$(echo "$release_json" | jq -r --arg n "$deb_name" '
