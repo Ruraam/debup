@@ -1,34 +1,45 @@
 #!/usr/bin/env bash
+#
+# debup package post-installation configuration.
+#
 
-set -e
+set -Eeuo pipefail
+umask 022
 
-case "$1" in
-configure)
+readonly CONF_DIR="/etc/debup"
+readonly SOURCES_FILE="${CONF_DIR}/sources.list"
+readonly TRACKED_SOURCE="debup|Ruraam/debup"
 
-chmod 755 /usr/local/bin/debup 2>/dev/null || true
+case "${1:-}" in
+    configure)
+        install -d -m 0755 "$CONF_DIR"
 
-if [ ! -d /etc/debup ]; then
-mkdir -p /etc/debup
-fi
+        tmp_sources="$(mktemp "${CONF_DIR}/.sources.list.XXXXXX")"
+        cleanup() {
+            [[ -z "${tmp_sources:-}" ]] || rm -f -- "$tmp_sources"
+        }
+        trap cleanup EXIT
 
-if [ ! -f /etc/debup/sources.list ];then
-touch /etc/debup/sources.list
-chmod 644 /etc/debup/sources.list
-fi
+        if [[ -f "$SOURCES_FILE" ]]; then
+            # Migrate the legacy short repository form and avoid duplicate entries.
+            awk -F'|' '
+                !($1 == "debup" && ($2 == "Ruraam/debup" || $2 == "https://github.com/Ruraam/debup"))
+            ' "$SOURCES_FILE" > "$tmp_sources"
+        fi
 
-TARGET="debup|Ruraam/debup"
-if ! grep -qxF "$TARGET" /etc/debup/sources.list; then
-echo "$TARGET" >> /etc/debup/sources.list
-fi
-;;
+        printf '%s\n' "$TRACKED_SOURCE" >> "$tmp_sources"
+        chmod 0644 "$tmp_sources"
+        mv -f -- "$tmp_sources" "$SOURCES_FILE"
+        tmp_sources=""
+        ;;
 
-abort-upgrade|abort-remove|abort-deconfigure)
-;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
 
-*)
-echo "postinst called with invalid argument $1" >&2
-exit 1
-;;
+    *)
+        printf 'postinst called with invalid argument: %s\n' "${1:-<missing>}" >&2
+        exit 1
+        ;;
 esac
 
 exit 0

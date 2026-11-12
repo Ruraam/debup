@@ -1,0 +1,369 @@
+name: Installer validation
+
+on:
+  push:
+    branches:
+      - main
+      - "hardening/**"
+    paths:
+      - "installer.sh"
+      - "scripts/sync_catalog.sh"
+      - "tests/test_sync_catalog.sh"
+      - "tests/test_search.sh"
+      - "tests/test_package_validation.sh"
+      - "tests/test_api_cache.sh"
+      - "curated_db.txt"
+      - "debup-pkg/usr/local/share/debup/**"
+      - ".github/workflows/sync-catalog.yml"
+      - "tests/test_package_scripts.sh"
+      - "tests/test_cli_function_scope.sh"
+      - "debup-pkg/DEBIAN/**"
+      - "debup-pkg/usr/local/bin/**"
+      - ".github/workflows/apt-repo.yml"
+      - ".github/workflows/release-deb.yml"
+      - ".github/workflows/installer-validation.yml"
+  pull_request:
+    paths:
+      - "installer.sh"
+      - "scripts/sync_catalog.sh"
+      - "tests/test_sync_catalog.sh"
+      - "tests/test_search.sh"
+      - "tests/test_package_validation.sh"
+      - "tests/test_api_cache.sh"
+      - "curated_db.txt"
+      - "debup-pkg/usr/local/share/debup/**"
+      - ".github/workflows/sync-catalog.yml"
+      - "tests/test_package_scripts.sh"
+      - "tests/test_cli_function_scope.sh"
+      - "debup-pkg/DEBIAN/**"
+      - "debup-pkg/usr/local/bin/**"
+      - ".github/workflows/apt-repo.yml"
+      - ".github/workflows/release-deb.yml"
+      - ".github/workflows/installer-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  installer-static-checks:
+    name: Bash syntax and ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Validate Bash syntax
+        run: |
+          bash -n installer.sh
+          bash -n scripts/sync_catalog.sh
+          bash -n tests/test_sync_catalog.sh
+          bash -n tests/test_search.sh
+          bash -n tests/test_package_validation.sh
+          bash -n tests/test_api_cache.sh
+          bash -n debup-pkg/usr/local/share/debup/api_cache.sh
+          bash -n debup-pkg/usr/local/share/debup/search.sh
+          bash -n debup-pkg/usr/local/share/debup/package_validation.sh
+          bash -n tests/test_package_scripts.sh
+          bash -n tests/test_cli_function_scope.sh
+          bash -n debup-pkg/DEBIAN/postinst
+          bash -n debup-pkg/DEBIAN/postrm
+          bash -n debup-pkg/usr/local/bin/debup
+          bash -n debup-pkg/usr/local/bin/dbp
+
+      - name: Run ShellCheck
+        run: |
+          shellcheck --severity=error installer.sh
+          shellcheck --severity=error scripts/sync_catalog.sh
+          shellcheck --severity=error tests/test_sync_catalog.sh
+          shellcheck --severity=error tests/test_search.sh
+          shellcheck --severity=error tests/test_package_validation.sh
+          shellcheck --severity=error tests/test_api_cache.sh
+          shellcheck --severity=error debup-pkg/usr/local/share/debup/api_cache.sh
+          shellcheck --severity=error debup-pkg/usr/local/share/debup/search.sh
+          shellcheck --severity=error debup-pkg/usr/local/share/debup/package_validation.sh
+          shellcheck --severity=error tests/test_package_scripts.sh
+          shellcheck --severity=error tests/test_cli_function_scope.sh
+          shellcheck --severity=error debup-pkg/DEBIAN/postinst
+          shellcheck --severity=error debup-pkg/DEBIAN/postrm
+          shellcheck --severity=error debup-pkg/usr/local/bin/debup
+          shellcheck --severity=error debup-pkg/usr/local/bin/dbp
+
+      - name: Verify debup and dbp are identical
+        run: cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+      - name: Test package metadata and checksum validation
+        run: bash tests/test_package_validation.sh
+
+      - name: Test GitHub API cache failure handling
+        run: bash tests/test_api_cache.sh
+
+      - name: Test curated search catalog
+        run: bash tests/test_search.sh
+
+      - name: Test catalog synchronization
+        run: bash tests/test_sync_catalog.sh
+
+      - name: Test Debian maintainer scripts
+        run: bash tests/test_package_scripts.sh
+
+      - name: Test CLI function scope
+        run: bash tests/test_cli_function_scope.sh
+
+      - name: Build and inspect Debian package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+          cp -a debup-pkg "$work_dir/debup-pkg"
+          chmod 0755 "$work_dir/debup-pkg/DEBIAN/postinst" "$work_dir/debup-pkg/DEBIAN/postrm"
+          dpkg-deb --build --root-owner-group "$work_dir/debup-pkg" "$work_dir/debup-ci.deb"
+          [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Package)" == "debup" ]]
+          [[ "$(dpkg-deb -f "$work_dir/debup-ci.deb" Architecture)" == "all" ]]
+          dpkg-deb --contents "$work_dir/debup-ci.deb" >/dev/null
+          cmp -s curated_db.txt debup-pkg/usr/local/share/debup/curated_db.txt
+          dpkg-deb --fsys-tarfile "$work_dir/debup-ci.deb" | tar -tf - | grep -Fx "./usr/local/share/debup/curated_db.txt" >/dev/null
+
+          sudo apt-get install -y curl jq
+          sudo apt-get install -y "$work_dir/debup-ci.deb"
+          grep -Fxq 'debup|Ruraam/debup' /etc/debup/sources.list
+          printf 'preserve this user file\n' | sudo tee /etc/debup/custom.conf >/dev/null
+          sudo apt-get purge -y debup
+          [[ -f /etc/debup/custom.conf ]]
+          sudo rm -f /etc/debup/custom.conf
+          sudo rmdir /etc/debup
+
+      - name: Check required hardening guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Unknown argument:' installer.sh
+          grep -Fq 'Expected exactly one primary GPG key' installer.sh
+          grep -Fq 'if (filename == name)' installer.sh
+          grep -Fq 'Unable to determine the system architecture' installer.sh
+          grep -Fq 'select_release_deb_url' installer.sh
+          grep -Fq -- "--proto-redir '=https'" installer.sh
+          grep -Fq 'DEB_PACKAGE=$(dpkg-deb -f "$DEB_FILE" Package' installer.sh
+          grep -Fq 'DEB_ARCH=$(dpkg-deb -f "$DEB_FILE" Architecture' installer.sh
+          grep -Fq 'DEB_VERSION=$(dpkg-deb -f "$DEB_FILE" Version' installer.sh
+          ! grep -Fq 'Falling back to first .deb' installer.sh
+          grep -Fq 'Architectures: amd64 arm64 armhf i386' .github/workflows/apt-repo.yml
+          grep -Fq 'expected_version="${tag#v}"' .github/workflows/apt-repo.yml
+          grep -Fq '[[ "$package_arch" == "all" ]]' .github/workflows/apt-repo.yml
+          grep -Fq '[[ "$package_version" == "$expected_version" ]]' .github/workflows/apt-repo.yml
+          grep -Fq 'expected_fingerprint="0F43E2925658EB3CAC8BA4B6B3C2F87E36A62AE2"' .github/workflows/apt-repo.yml
+          grep -Fq 'installer-pinned fingerprint' .github/workflows/apt-repo.yml
+          grep -Fq 'chmod 700 "$user_conf_dir"' debup-pkg/usr/local/bin/debup
+          grep -Fq 'mv -f -- "$user_tmp" "$user_conf_dir/token"' debup-pkg/usr/local/bin/debup
+          grep -Fq 'debup_info() {' debup-pkg/usr/local/bin/debup
+          grep -Fq 'debup_inspect() {' debup-pkg/usr/local/bin/debup
+          grep -Fq "'dpkg-deb' is required to validate downloaded packages" installer.sh
+          grep -Fq 'APT package index update failed' installer.sh
+          grep -Fq 'Failed to set executable permissions' installer.sh
+          grep -Fq 'mktemp -d' scripts/sync_catalog.sh
+          grep -Fq 'atomically replace the catalog' scripts/sync_catalog.sh
+          ! grep -Fq '/tmp/deb-get-repo' scripts/sync_catalog.sh
+          ! grep -Fq '/tmp/deb-get.csv' scripts/sync_catalog.sh
+          grep -Fq 'apt-get --simulate install' debup-pkg/usr/local/bin/debup
+          grep -Fq 'apt-get --no-remove install -y' debup-pkg/usr/local/bin/debup
+          grep -Fq 'apt-get --simulate dist-upgrade' debup-pkg/usr/local/bin/debup
+          grep -Fq 'apt_args=(--no-remove dist-upgrade)' debup-pkg/usr/local/bin/debup
+          grep -Fq 'apt_sync_failed=1' debup-pkg/usr/local/bin/debup
+          grep -Fq 'find "$CACHE_API_DIR" -mindepth 1 -maxdepth 1' debup-pkg/usr/local/bin/debup
+          grep -Fq 'clean_failed=1' debup-pkg/usr/local/bin/debup
+          grep -Fq 'deb_version_matches_release_floor' debup-pkg/usr/local/bin/debup
+          grep -Fq 'deb_version_is_not_newer' debup-pkg/usr/local/bin/debup
+          grep -Fq 'Dry run: the GitHub token would be stored securely' debup-pkg/usr/local/bin/debup
+          grep -Fq 'stale cached data will not be used' debup-pkg/usr/local/share/debup/api_cache.sh
+          grep -Fq -- '--proto-redir' debup-pkg/usr/local/share/debup/package_validation.sh
+          grep -Fq 'parse_search_selection' debup-pkg/usr/local/share/debup/search.sh
+          grep -Fq 'validate_release_asset_selection' debup-pkg/usr/local/share/debup/package_validation.sh
+          grep -Fq 'global_release_ids' debup-pkg/usr/local/bin/debup
+          grep -Fq 'global_assets' debup-pkg/usr/local/bin/debup
+          grep -Fq 'releases/${EXPECTED_RELEASE_ID}' debup-pkg/usr/local/bin/debup
+          grep -Fq 'install_apt_package "$selected_target" true' debup-pkg/usr/local/bin/debup
+          grep -Fq 'Only GitHub release repositories are supported by debup' scripts/sync_catalog.sh
+          ! grep -Fq 'direct_download' scripts/sync_catalog.sh
+
+  compatibility-matrix:
+    name: Compatibility (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 12
+            image: debian:12
+          - name: Debian 13
+            image: debian:13
+          - name: Ubuntu 22.04
+            image: ubuntu:22.04
+          - name: Ubuntu 24.04
+            image: ubuntu:24.04
+    timeout-minutes: 25
+    steps:
+      - name: Bootstrap Git for checkout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime and package build dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get install -y --no-install-recommends bash curl dpkg-dev jq
+
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n installer.sh
+          bash -n scripts/sync_catalog.sh
+          bash -n tests/test_sync_catalog.sh
+          bash -n tests/test_search.sh
+          bash -n tests/test_package_validation.sh
+          bash -n tests/test_api_cache.sh
+          bash -n tests/test_package_scripts.sh
+          bash -n tests/test_cli_function_scope.sh
+          bash -n debup-pkg/DEBIAN/postinst
+          bash -n debup-pkg/DEBIAN/postrm
+          bash -n debup-pkg/usr/local/bin/debup
+          bash -n debup-pkg/usr/local/bin/dbp
+          bash -n debup-pkg/usr/local/share/debup/api_cache.sh
+          bash -n debup-pkg/usr/local/share/debup/search.sh
+          bash -n debup-pkg/usr/local/share/debup/package_validation.sh
+
+      - name: Run regression suites
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash tests/test_package_validation.sh
+          bash tests/test_api_cache.sh
+          bash tests/test_search.sh
+          bash tests/test_sync_catalog.sh
+          bash tests/test_package_scripts.sh
+          bash tests/test_cli_function_scope.sh
+          cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+      - name: Build, install, and purge the DEB package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+          cp -a debup-pkg "$work_dir/debup-pkg"
+          chmod 0755 \
+            "$work_dir/debup-pkg/DEBIAN/postinst" \
+            "$work_dir/debup-pkg/DEBIAN/postrm" \
+            "$work_dir/debup-pkg/usr/local/bin/debup" \
+            "$work_dir/debup-pkg/usr/local/bin/dbp"
+
+          package="$work_dir/debup-ci.deb"
+          dpkg-deb --build --root-owner-group "$work_dir/debup-pkg" "$package"
+          [[ "$(dpkg-deb -f "$package" Package)" == "debup" ]]
+          [[ "$(dpkg-deb -f "$package" Architecture)" == "all" ]]
+          dpkg-deb --contents "$package" >/dev/null
+
+          dpkg -i "$package"
+          grep -Fxq 'debup|Ruraam/debup' /etc/debup/sources.list
+          printf 'preserve this user file\n' > /etc/debup/custom.conf
+          dpkg --purge debup
+          [[ -f /etc/debup/custom.conf ]]
+          rm -f /etc/debup/custom.conf
+          rmdir /etc/debup
+
+  emulated-multiarch:
+    name: Emulated (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 12 arm64
+            image: debian:12
+            platform: linux/arm64
+          - name: Debian 13 arm64
+            image: debian:13
+            platform: linux/arm64
+          - name: Debian 12 armhf
+            image: debian:12
+            platform: linux/arm/v7
+          - name: Debian 13 armhf
+            image: debian:13
+            platform: linux/arm/v7
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable QEMU emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64,arm
+
+      - name: Run regression, package build, install, and purge tests
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --platform "$PLATFORM" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            "$IMAGE" bash -lc '
+              set -Eeuo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends bash curl dpkg-dev git jq
+
+              bash -n installer.sh
+              bash -n tests/test_package_validation.sh
+              bash -n tests/test_api_cache.sh
+              bash -n tests/test_search.sh
+              bash -n tests/test_sync_catalog.sh
+              bash -n tests/test_package_scripts.sh
+              bash -n tests/test_cli_function_scope.sh
+              bash -n debup-pkg/DEBIAN/postinst
+              bash -n debup-pkg/DEBIAN/postrm
+              bash -n debup-pkg/usr/local/bin/debup
+              bash -n debup-pkg/usr/local/bin/dbp
+
+              bash tests/test_package_validation.sh
+              bash tests/test_api_cache.sh
+              bash tests/test_search.sh
+              bash tests/test_sync_catalog.sh
+              bash tests/test_package_scripts.sh
+              bash tests/test_cli_function_scope.sh
+              cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+              work_dir="$(mktemp -d)"
+              trap "rm -rf -- \"$work_dir\"" EXIT
+              cp -a debup-pkg "$work_dir/debup-pkg"
+              chmod 0755 "$work_dir/debup-pkg/DEBIAN/postinst" "$work_dir/debup-pkg/DEBIAN/postrm"
+              chmod 0755 "$work_dir/debup-pkg/usr/local/bin/debup" "$work_dir/debup-pkg/usr/local/bin/dbp"
+              package="$work_dir/debup-ci.deb"
+              dpkg-deb --build --root-owner-group "$work_dir/debup-pkg" "$package"
+              test "$(dpkg-deb -f "$package" Architecture)" = all
+              dpkg -i "$package"
+              grep -Fxq "debup|Ruraam/debup" /etc/debup/sources.list
+              printf "keep me\n" > /etc/debup/custom.conf
+              dpkg --purge debup
+              test -f /etc/debup/custom.conf
+              rm -f /etc/debup/custom.conf
+              rmdir /etc/debup
+            '

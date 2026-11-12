@@ -99,7 +99,19 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 
 #### 🧪 Dry-Run Simulation Mode [-d / --dry-run]:
 
-• Simulate downloads, upgrades, repository operations, pins, and unpins across any command without making any actual changes to the file system or APT state.
+• Preview downloads, upgrades, repository operations, pins, unpins, and cleanup without installing/removing packages or changing APT state.
+
+• Read-only GitHub API requests may still be performed, but dry-run does not write the persistent API cache or token configuration. Temporary files are cleaned up automatically.
+
+• GitHub package dry-runs show the selected release and intended install action. They do not download the package, so they cannot fully simulate APT dependency resolution.
+
+### 🛡️ APT Transaction Safety
+
+• Before installing a downloaded GitHub package, debup simulates the APT transaction and rejects plans that would remove or purge installed packages.
+
+• The real installation uses APT's `--no-remove` safeguard as a second line of defense.
+
+• The downloaded Debian version is checked against the release tag (when it is a valid Debian version) and the currently installed version. Older or identical package versions are not installed.
 
 #### ⚡ High-Rate API Tracking & Caching [dbp -t]:
 
@@ -130,6 +142,10 @@ Missing the AUR convenience on Debian/Ubuntu? **debup** turns GitHub Releases in
 * **Distro Prioritization:** Prefers distro-specific builds (`debian` vs `ubuntu`) when multiple compatible packages are published.
 * **Safe Fallback:** Cleanly aborts with an explicit warning if no compatible package exists for your CPU architecture.
 
+• Search binds each GitHub result to the exact release ID and compatible `.deb` asset shown in the selection list. Installation revalidates that same release and asset instead of silently resolving a newer `latest` release.
+
+• The curated catalog contains only GitHub release sources that debup can validate and track. Direct-download recipes are excluded until they have a complete integrity and update-tracking path.
+
 ---
 
 ## 📦 Installation
@@ -151,6 +167,8 @@ curl -sSL https://raw.githubusercontent.com/Ruraam/debup/main/installer.sh | bas
 <img src="assets/installer_menu1.jpg" width="200">
  
 </div>
+
+> **APT repository maintainer note:** the GitHub Actions publisher uses a dedicated GPG signing key stored in the `GPG_PRIVATE_KEY` repository secret. The key must be usable non-interactively (without a passphrase prompt); the workflow performs a signing preflight and fails before deployment if it cannot sign. Its primary fingerprint must match the value pinned in `installer.sh`.
 
 ---
 

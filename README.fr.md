@@ -59,6 +59,10 @@ L'ergonomie d'AUR vous manque sur Debian/Ubuntu ? **debup** transforme les GitHu
 
 • Prompt interactif multi-sélection supportant les plages et les listes séparées par des virgules (ex. 1 2 3, 1-3, 1,2,4) pour des installations groupées rapides.
 
+• Chaque résultat GitHub conserve l'identifiant exact de sa release et le nom du `.deb` compatible affiché. L'installation revalide cette même release et ce même asset au lieu de résoudre silencieusement une nouvelle release `latest`.
+
+• Le catalogue intégré ne contient que des sources GitHub Releases que debup sait valider et suivre. Les téléchargements directs sont exclus tant que leur intégrité et leur suivi des mises à jour ne sont pas entièrement pris en charge.
+
 #### 📦 Installation directe [dbp -i <owner/repo> / dbp -i <paquet>]:
 
 • Plus besoin de chercher les URLs de release. Pointez vers n'importe quel dépôt, debup détecte, associe votre architecture (amd64 / arm64), télécharge et installe le bon .deb.
@@ -99,7 +103,19 @@ L'ergonomie d'AUR vous manque sur Debian/Ubuntu ? **debup** transforme les GitHu
 
 #### 🧪 Mode simulation Dry-Run [-d / --dry-run]:
 
-• Simulez les téléchargements, mises à jour, opérations sur les dépôts, épinglages et désépinglages sur n'importe quelle commande sans effectuer de changement réel sur le système de fichiers ou l'état APT.
+• Prévisualise les téléchargements, mises à jour, opérations sur les dépôts, épinglages, désépinglages et nettoyages sans installer/supprimer de paquets ni modifier l'état d'APT.
+
+• Les requêtes GitHub en lecture seule restent possibles, mais le mode simulation n'écrit ni le cache API persistant ni la configuration du token. Les fichiers temporaires sont automatiquement nettoyés.
+
+• Pour les paquets GitHub, le mode simulation affiche la release sélectionnée et l'action prévue. Il ne télécharge pas le paquet et ne peut donc pas simuler entièrement la résolution des dépendances APT.
+
+### 🛡️ Sécurité des transactions APT
+
+• Avant d'installer un paquet GitHub téléchargé, debup simule la transaction APT et refuse tout plan qui supprimerait ou purgerait des paquets installés.
+
+• L'installation réelle utilise également la protection APT `--no-remove`.
+
+• La version du paquet Debian téléchargé est comparée au tag de release (si celui-ci est une version Debian valide) et à la version installée. Les versions identiques ou antérieures ne sont pas installées.
 
 #### ⚡ Suivi & cache API haut débit [dbp -t]:
 

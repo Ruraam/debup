@@ -1,18 +1,18 @@
 name: Update APT Repository
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag to publish (for example v4.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -25,66 +25,201 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Install reprepro
-        run: sudo apt-get update && sudo apt-get install -y reprepro gpg
+      - name: Install repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y reprepro gpg
 
-      - name: Download release assets
+      - name: Download all stable release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          set -Eeuo pipefail
           mkdir -p debs
-          for i in $(seq 1 12); do
-            gh release download --pattern "*.deb" --dir debs/ --clobber || true
-            count=$(find debs/ -name "*.deb" | wc -l)
-          if [ "$count" -gt 0 ]; then
-            echo "Trouvé $count paquet(s) .deb !"
-            break
-          fi
-          echo "En attente des fichiers .deb (tentative $i/12)..."
-          sleep 5
+
+          # Enumerate published stable releases, oldest or newest order is
+          # irrelevant to reprepro; every package version is indexed.
+          mapfile -t release_tags < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.draft == false and .prerelease == false and any(.assets[]?; .name | endswith(".deb"))) | .tag_name'
+          )
+
+          (("${#release_tags[@]}" > 0)) || {
+            echo "Error: No published stable releases were found." >&2
+            exit 1
+          }
+
+          requested_found=false
+          for tag in "${release_tags[@]}"; do
+            [[ "$tag" == "$RELEASE_TAG" ]] && requested_found=true
+            release_dir="debs/$tag"
+            mkdir -p "$release_dir"
+
+            gh release download "$tag" \
+              --pattern "*.deb" \
+              --pattern "SHA256SUMS" \
+              --dir "$release_dir" || {
+                echo "Error: Failed to download DEB assets for stable release $tag." >&2
+                exit 1
+              }
+
+            mapfile -t packages < <(
+              find "$release_dir" -maxdepth 1 -type f -name '*.deb' -print | sort
+            )
+            (("${#packages[@]}" > 0)) || {
+              echo "No DEB package for $tag; skipping."
+              continue
+            }
+
+            # The current release must carry a checksum manifest. Older
+            # releases are verified against GitHub's immutable asset digest.
+            if [[ -f "$release_dir/SHA256SUMS" ]]; then
+              (
+                cd "$release_dir"
+                sha256sum --check --strict SHA256SUMS
+              )
+            elif [[ "$tag" == "$RELEASE_TAG" ]]; then
+              echo "Error: SHA256SUMS is missing from requested release $tag." >&2
+              exit 1
+            fi
+
+            mapfile -t asset_digests < <(
+              gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" \
+                --jq '.assets[] | select(.name | endswith(".deb")) | "\(.name)|\(.digest)"'
+            )
+            (("${#asset_digests[@]}" == "${#packages[@]}")) || {
+              echo "Error: GitHub asset metadata does not match downloaded packages for $tag." >&2
+              exit 1
+            }
+
+            for asset_entry in "${asset_digests[@]}"; do
+              asset_name="${asset_entry%%|*}"
+              asset_digest="${asset_entry#*|}"
+              expected_digest="${asset_digest#sha256:}"
+              [[ "$expected_digest" =~ ^[[:xdigit:]]{64}$ ]] || {
+                echo "Error: Missing or invalid GitHub SHA-256 digest for $tag/$asset_name." >&2
+                exit 1
+              }
+              actual_digest="$(sha256sum "$release_dir/$asset_name" | awk '{print $1}')"
+              [[ "$actual_digest" == "$expected_digest" ]] || {
+                echo "Error: GitHub asset digest mismatch for $tag/$asset_name." >&2
+                exit 1
+              }
+            done
+
+            expected_version="${tag#v}"
+            dpkg --validate-version "$expected_version" || {
+              echo "Error: Invalid Debian version in release tag: $tag" >&2
+              exit 1
+            }
+            for package in "${packages[@]}"; do
+              package_name="$(dpkg-deb -f "$package" Package)"
+              package_version="$(dpkg-deb -f "$package" Version)"
+              package_arch="$(dpkg-deb -f "$package" Architecture)"
+
+              [[ "$package_name" == "debup" ]] || {
+                echo "Error: Unexpected package in $tag: $package" >&2
+                exit 1
+              }
+              [[ "$package_version" == "$expected_version" ]] || {
+                echo "Error: $package has version $package_version; expected $expected_version." >&2
+                exit 1
+              }
+              [[ "$package_arch" == "all" ]] || {
+                echo "Error: Expected Architecture: all, received $package_arch." >&2
+                exit 1
+              }
+            done
           done
 
-          if [ "$count" -eq 0 ]; then
-            echo "ERREUR: Aucun .deb trouvé !"
+          [[ "$requested_found" == "true" ]] || {
+            echo "Error: Requested release $RELEASE_TAG is not a published stable release." >&2
             exit 1
-          fi
+          }
 
-      - name: Import GPG Key and build APT repository
+          # At least one package must exist, and the requested release must
+          # contribute its own package to the repository.
+          find debs -type f -name '*.deb' -print -quit | grep -q . || {
+            echo "Error: No valid DEB packages were downloaded." >&2
+            exit 1
+          }
+          find "debs/$RELEASE_TAG" -maxdepth 1 -type f -name '*.deb' -print -quit | grep -q . || {
+            echo "Error: Requested release $RELEASE_TAG contains no DEB package." >&2
+            exit 1
+          }
+
+      - name: Import signing key and build APT repository
         env:
           GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" > ~/.gnupg/gpg.conf
-          gpgconf --kill gpg-agent
+          set -Eeuo pipefail
+          [[ -n "$GPG_KEY" ]] || {
+            echo "Error: GPG_PRIVATE_KEY secret is empty." >&2
+            exit 1
+          }
 
-          echo "$GPG_KEY" | gpg --batch --yes --import
+          export GNUPGHOME="$RUNNER_TEMP/debup-gnupg"
+          install -d -m 0700 "$GNUPGHOME"
+          printf '%s\n' "$GPG_KEY" | gpg --batch --import
 
-          KEY_ID=$(gpg --list-secret-keys --with-colons | grep '^sec' | cut -d: -f5)
-          echo "Using GPG Key ID: $KEY_ID"
+          mapfile -t key_ids < <(gpg --batch --with-colons --list-secret-keys |
+            awk -F: '$1 == "sec" { print $5 }')
+          (("${#key_ids[@]}" == 1)) || {
+            echo "Error: Expected exactly one secret primary key; found ${#key_ids[@]}." >&2
+            exit 1
+          }
+          KEY_ID="${key_ids[0]}"
+
+          # Keep the repository signing key aligned with the fingerprint pinned
+          # by installer.sh; otherwise clients would reject the published key.
+          expected_fingerprint="0F43E2925658EB3CAC8BA4B6B3C2F87E36A62AE2"
+          mapfile -t primary_fingerprints < <(
+            gpg --batch --with-colons --fingerprint --list-secret-keys |
+              awk -F: '$1 == "sec" { awaiting_fingerprint = 1; next }
+                awaiting_fingerprint && $1 == "fpr" {
+                  print toupper($10)
+                  awaiting_fingerprint = 0
+                }'
+          )
+          (( "${#primary_fingerprints[@]}" == 1 )) &&
+            [[ "${primary_fingerprints[0]}" == "$expected_fingerprint" ]] || {
+              echo "Error: Imported signing key does not match the installer-pinned fingerprint." >&2
+              exit 1
+            }
 
           mkdir -p public/conf
-          cat <<EOF > public/conf/distributions
+          cat > public/conf/distributions <<EOF
           Origin: debup
           Label: debup
           Codename: stable
-          Architectures: amd64 arm64
+          Architectures: amd64 arm64 armhf i386
           Components: main
           Description: debup official repository
           SignWith: $KEY_ID
           EOF
 
+          # GitHub Actions cannot answer an interactive GPG passphrase prompt.
+          # Require the dedicated CI signing key to be usable non-interactively.
+          printf '%s\n' 'debup signing-key preflight' > "$RUNNER_TEMP/debup-signing-check.txt"
+          gpg --batch --yes --local-user "$KEY_ID" \
+            --detach-sign \
+            --output "$RUNNER_TEMP/debup-signing-check.sig" \
+            "$RUNNER_TEMP/debup-signing-check.txt"
+
           cd public
           for deb in ../debs/*.deb; do
-            if [ -f "$deb" ]; then
-            reprepro --ask-passphrase includedeb stable "$deb" || reprepro includedeb stable "$deb"
-            fi
+            [[ -f "$deb" ]] || continue
+            reprepro includedeb stable "$deb"
           done
 
-          gpg --armor --export "$KEY_ID" > debup.gpg
+          gpg --batch --armor --export "$KEY_ID" > debup.gpg
+          [[ -s debup.gpg ]] || {
+            echo "Error: Failed to export the repository public key." >&2
+            exit 1
+          }
           touch .nojekyll
 
       - name: Setup Pages
@@ -93,7 +228,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './public'
+          path: "./public"
 
       - name: Deploy to GitHub Pages
         id: deployment

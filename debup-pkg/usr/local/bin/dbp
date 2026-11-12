@@ -38,10 +38,35 @@ USER_LANG="${SYSTEM_LOCALE%%_*}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 
+SEARCH_HELPER="${SCRIPT_DIR}/../share/debup/search.sh"
+if [ -f "$SEARCH_HELPER" ]; then
+    # shellcheck source=/dev/null
+    source "$SEARCH_HELPER"
+fi
+
+PACKAGE_VALIDATION_HELPER="${SCRIPT_DIR}/../share/debup/package_validation.sh"
+if [ ! -r "$PACKAGE_VALIDATION_HELPER" ]; then
+    printf 'Required package validation helper is missing: %s\n' "$PACKAGE_VALIDATION_HELPER" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$PACKAGE_VALIDATION_HELPER"
+
+API_CACHE_HELPER="${SCRIPT_DIR}/../share/debup/api_cache.sh"
+if [ ! -r "$API_CACHE_HELPER" ]; then
+    printf 'Required API cache helper is missing: %s\n' "$API_CACHE_HELPER" >&2
+    exit 1
+fi
+# shellcheck source=/dev/null
+source "$API_CACHE_HELPER"
+
 CONF_DIR="/etc/debup"
 SOURCES_FILE="${CONF_DIR}/sources.list"
 
-TEMP_DIR=$(mktemp -d "/tmp/debup.XXXXXX")
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/debup.XXXXXX") || {
+    printf 'Unable to create a secure temporary directory.\n' >&2
+    exit 1
+}
 cleanup() {
     rm -rf -- "$TEMP_DIR"
 }
@@ -49,7 +74,6 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 CACHE_API_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/debup/api"
-mkdir -p -m 700 "$CACHE_API_DIR" 2>/dev/null || mkdir -p "$CACHE_API_DIR"
 
 if [ -d "/usr/local/share/debup/locales" ]; then
     LOCALE_DIR="/usr/local/share/debup/locales"
@@ -161,7 +185,7 @@ else
 fi
 
 missing=0
-for cmd in curl jq dpkg dpkg-deb apt-get apt-cache apt-mark; do
+for cmd in curl jq dpkg dpkg-deb apt apt-get apt-cache apt-mark sha256sum awk; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         printf "${RED}%s : '%s' %s${NC}\n" "${MSG_ERR_PREFIX:-Error}" "$cmd" "${MSG_CMD_REQUIRED_SUFFIX:-is required.}" >&2
         missing=1
@@ -179,16 +203,43 @@ if [ ! -d "$CONF_DIR" ]; then
 fi
 
 if [ ! -f "$SOURCES_FILE" ]; then
-    if ! touch "$SOURCES_FILE" 2>/dev/null; then
-        $ELEVATE touch "$SOURCES_FILE" || {
-            printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_CREATE_FILE" "$SOURCES_FILE")" >&2
-            exit 1
-        }
+    if ! $ELEVATE install -D -m 0644 /dev/null "$SOURCES_FILE"; then
+        printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_CREATE_FILE" "$SOURCES_FILE")" >&2
+        exit 1
     fi
-    $ELEVATE chmod 644 "$SOURCES_FILE" 2>/dev/null || chmod 644 "$SOURCES_FILE"
 fi
 
-ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
+atomic_replace_sources() {
+    local content_file="$1"
+    local destination_tmp
+
+    if [ ! -f "$content_file" ]; then
+        echo -e "${RED}✖ Source-list staging file is missing.${NC}" >&2
+        return 1
+    fi
+
+    destination_tmp=$($ELEVATE mktemp "${CONF_DIR}/.sources.list.XXXXXX") || {
+        echo -e "${RED}✖ Failed to create a temporary source-list file.${NC}" >&2
+        return 1
+    }
+
+    if ! $ELEVATE install -m 0644 "$content_file" "$destination_tmp"; then
+        $ELEVATE rm -f -- "$destination_tmp" >/dev/null 2>&1 || true
+        echo -e "${RED}✖ Failed to stage the updated source list.${NC}" >&2
+        return 1
+    fi
+
+    if ! $ELEVATE mv -f -- "$destination_tmp" "$SOURCES_FILE"; then
+        $ELEVATE rm -f -- "$destination_tmp" >/dev/null 2>&1 || true
+        echo -e "${RED}✖ Failed to atomically replace $SOURCES_FILE.${NC}" >&2
+        return 1
+    fi
+}
+
+if ! ARCH=$(dpkg --print-architecture 2>/dev/null) || [ -z "$ARCH" ]; then
+    echo -e "${RED}✖ Unable to determine the system architecture with dpkg.${NC}" >&2
+    exit 1
+fi
 
 get_arch_regex() {
     case "$ARCH" in
@@ -273,6 +324,11 @@ filter_compatible_debs() {
 set_github_token() {
     local token="$1"
 
+    if [ "$DRY_RUN" = "true" ]; then
+        echo -e "${YELLOW}Dry run: the GitHub token would be stored securely; no files will be changed.${NC}"
+        return 0
+    fi
+
     if [ -z "$token" ]; then
         if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
             echo -e "${RED}${MSG_ERR_NO_TTY:-Aucun terminal disponible ; passez le token en argument : dbp token <PAT>}${NC}" >&2
@@ -293,16 +349,61 @@ set_github_token() {
         return 1
     fi
 
+    # GitHub tokens are opaque ASCII credentials; reject whitespace and shell
+    # metacharacters before writing the legacy shell-style configuration file.
+    if [[ ! "$token" =~ ^[A-Za-z0-9_]+$ ]]; then
+        echo -e "${RED}✖ Invalid token format; refusing to store unsafe characters.${NC}" >&2
+        return 1
+    fi
+
     local user_conf_dir="${XDG_CONFIG_HOME:-$HOME/.config}/debup"
-    mkdir -p -m 700 "$user_conf_dir" 2>/dev/null || mkdir -p "$user_conf_dir"
-    echo "$token" > "$user_conf_dir/token"
-    chmod 600 "$user_conf_dir/token"
+    local user_tmp=""
+    local root_tmp=""
+    local old_umask
+    old_umask=$(umask)
+    umask 077
+
+    if ! mkdir -p "$user_conf_dir" || ! chmod 700 "$user_conf_dir"; then
+        umask "$old_umask"
+        echo -e "${RED}✖ Unable to secure the user configuration directory.${NC}" >&2
+        return 1
+    fi
+    user_tmp=$(mktemp "${user_conf_dir}/.token.XXXXXX") || {
+        umask "$old_umask"
+        echo -e "${RED}✖ Unable to create a temporary token file.${NC}" >&2
+        return 1
+    }
+    if ! printf '%s\n' "$token" > "$user_tmp" ||
+       ! chmod 600 "$user_tmp" ||
+       ! mv -f -- "$user_tmp" "$user_conf_dir/token"; then
+        rm -f -- "$user_tmp"
+        umask "$old_umask"
+        echo -e "${RED}✖ Unable to atomically store the user token.${NC}" >&2
+        return 1
+    fi
 
     if [ "$(id -ru)" -eq 0 ]; then
-        $ELEVATE mkdir -p "$CONF_DIR"
-        echo "GITHUB_TOKEN=\"$token\"" | $ELEVATE tee "$CONF_DIR/debup.conf" >/dev/null
-        $ELEVATE chmod 600 "$CONF_DIR/debup.conf"
+        if ! $ELEVATE mkdir -p "$CONF_DIR"; then
+            umask "$old_umask"
+            echo -e "${RED}✖ Unable to create the system configuration directory.${NC}" >&2
+            return 1
+        fi
+        root_tmp=$($ELEVATE mktemp "${CONF_DIR}/.debup.conf.XXXXXX") || {
+            umask "$old_umask"
+            echo -e "${RED}✖ Unable to create a temporary system token file.${NC}" >&2
+            return 1
+        }
+        if ! printf 'GITHUB_TOKEN="%s"\n' "$token" | $ELEVATE tee "$root_tmp" >/dev/null ||
+           ! $ELEVATE chmod 600 "$root_tmp" ||
+           ! $ELEVATE mv -f -- "$root_tmp" "$CONF_DIR/debup.conf"; then
+            $ELEVATE rm -f -- "$root_tmp" 2>/dev/null || true
+            umask "$old_umask"
+            echo -e "${RED}✖ Unable to atomically store the system token.${NC}" >&2
+            return 1
+        fi
     fi
+
+    umask "$old_umask"
 
     echo -e "${BLUE}---------------------------------------${NC}"
     echo -e "${GREEN}${MSG_TOKEN_SUCCESS:-GitHub Token configured successfully.}${NC}"
@@ -322,52 +423,6 @@ if [ -n "$GITHUB_TOKEN" ]; then
     AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
 fi
 
-fetch_github_api() {
-    local endpoint="$1"
-    local ttl="${2:-30}"
-
-    endpoint="${endpoint#https://api.github.com/}"
-    endpoint="${endpoint#/}"
-
-    local cache_key
-    cache_key=$(echo "$endpoint" | tr '/' '_')
-    local cache_file="${CACHE_API_DIR}/${cache_key}.json"
-
-    if [ -f "$cache_file" ] && [ -z "$(find "$cache_file" -mmin +"$ttl" 2>/dev/null)" ]; then
-        cat "$cache_file"
-        return 0
-    fi
-
-    local response
-    response=$(curl -sS --connect-timeout 10 --max-time 25 --retry 2 --retry-delay 1 \
-        "${AUTH_HEADER[@]}" \
-        -H "Accept: application/vnd.github+json" \
-        -H "User-Agent: debup-tool" \
-        "https://api.github.com/${endpoint}" 2>/dev/null)
-
-    if echo "$response" | grep -qiE '"message"[[:space:]]*:[[:space:]]*"(API rate limit|Not Found|Bad credentials)'; then
-        if [ -f "$cache_file" ]; then
-            cat "$cache_file"
-            return 0
-        fi
-        echo "$response"
-        return 1
-    fi
-
-    if [ -n "$response" ] && echo "$response" | jq -e . >/dev/null 2>&1; then
-        echo "$response" > "$cache_file"
-        echo "$response"
-        return 0
-    fi
-
-    if [ -f "$cache_file" ]; then
-        cat "$cache_file"
-        return 0
-    fi
-
-    return 1
-}
-
 debup_inspect() {
     local target="$1"
     if [ -z "$target" ]; then
@@ -383,7 +438,10 @@ debup_inspect() {
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_INSPECT_TITLE" "$repo_path")"
 
     local release_json
-    release_json=$(fetch_github_api "$api_url" 10)
+    if ! release_json=$(fetch_github_api "$api_url" 10); then
+        printf "${RED}GitHub release metadata could not be retrieved; inspection aborted.\n${NC}" >&2
+        return 1
+    fi
 
     local deb_assets
     deb_assets=$(echo "$release_json" | jq -r '.assets[]?.name // empty' | grep -iE '\.deb$')
@@ -402,21 +460,53 @@ debup_inspect() {
         return 1
     fi
 
-    local deb_url
-    deb_url=$(echo "$release_json" | jq -r --arg name "$chosen_deb" '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
+    if [[ "$chosen_deb" == */* || "$chosen_deb" == "." || "$chosen_deb" == ".." ]]; then
+        echo -e "${RED}✖ Invalid Debian asset filename returned by GitHub.${NC}" >&2
+        return 1
+    fi
+
+    local release_id
+    release_id=$(jq -r '.id // empty' <<< "$release_json")
+    if ! validate_release_asset_selection "$release_json" "$release_id" "$chosen_deb"; then
+        echo -e "${RED}✖ The selected Debian asset does not belong to a valid, unique GitHub release asset entry.${NC}" >&2
+        return 1
+    fi
+
+    local deb_urls deb_url_count deb_url
+    deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || return 1
+    deb_url_count=$(printf '%s\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
+    if [ "$deb_url_count" -ne 1 ]; then
+        echo -e "${RED}✖ The selected Debian asset does not have exactly one download URL.${NC}" >&2
+        return 1
+    fi
+    deb_url="$deb_urls"
+    if [[ ! "$deb_url" =~ ^https://github\.com/[^[:space:]]+$ ]]; then
+        echo -e "${RED}✖ The selected Debian asset has an invalid download URL.${NC}" >&2
+        return 1
+    fi
 
     local tmp_deb="$TEMP_DIR/inspect.deb"
     local inspect_dir="$TEMP_DIR/control_data"
     mkdir -p "$inspect_dir"
 
     echo -e "${GRAY}${MSG_INSPECT_DOWNLOADING}${NC}"
-    if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 -o "$tmp_deb" "$deb_url"; then
+    if ! download_file_atomic "$deb_url" "$tmp_deb" 300 false; then
         echo -e "${BLUE}---------------------------------------${NC}"
         echo -e "${RED}${MSG_ERR_INSPECT_DL}${NC}"
         return 1
     fi
 
-    dpkg-deb -e "$tmp_deb" "$inspect_dir" 2>/dev/null
+    if ! validate_deb_metadata "$tmp_deb" "$ARCH"; then
+        echo -e "${RED}✖ Downloaded Debian package failed metadata validation; inspection aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+
+    if ! dpkg-deb -e "$tmp_deb" "$inspect_dir" 2>/dev/null; then
+        echo -e "${RED}✖ Unable to extract the Debian control archive; inspection aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
 
     echo -e "${BLUE}---------------------------------------------------------${NC}"
     echo -e "${YELLOW}⚙  ${MSG_INSPECT_SCRIPTS}${NC}"
@@ -440,14 +530,55 @@ debup_inspect() {
     echo -e "${YELLOW}📁 ${MSG_INSPECT_FILES}${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 
-    dpkg-deb -c "$tmp_deb" | awk '{print $1, $2, $6}' | sed 's/^/  /'
+    local file_listing
+    if ! file_listing=$(dpkg-deb -c "$tmp_deb"); then
+        echo -e "${RED}✖ Unable to read the Debian package file list.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    printf '%s\n' "$file_listing" | awk '{print $1, $2, $6}' | sed 's/^/  /'
     echo -e "${BLUE}---------------------------------------------------------${NC}"
+}
+
+install_apt_package() {
+    local target="$1"
+    local assume_yes="${2:-false}"
+    local apt_plan
+    local -a apt_args=()
+
+    if [ -z "$target" ]; then
+        echo -e "${RED}✖ No APT package target was provided.${NC}" >&2
+        return 1
+    fi
+
+    if [ "$DRY_RUN" = "true" ]; then
+        printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_INSTALL" "$target")"
+        return 0
+    fi
+
+    if ! apt_plan=$($ELEVATE env LC_ALL=C apt-get --simulate install "$target" 2>&1); then
+        echo -e "${RED}✖ APT could not resolve the requested package transaction; installation aborted.${NC}" >&2
+        printf '%s\n' "$apt_plan" >&2
+        return 1
+    fi
+    if apt_plan_has_removals "$apt_plan"; then
+        echo -e "${RED}✖ APT would remove or purge installed packages; refusing this transaction.${NC}" >&2
+        printf '%s\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+        return 1
+    fi
+
+    apt_args=(--no-remove install)
+    [ "$assume_yes" = "true" ] && apt_args+=("-y")
+    apt_args+=("$target")
+    run_apt_styled "${apt_args[@]}"
 }
 
 check_and_update() {
     local REPO_URL="$1"
     local PKG_NAME="$2"
     local ASSUME_YES="$3"
+    local EXPECTED_RELEASE_ID="${4:-}"
+    local EXPECTED_ASSET="${5:-}"
 
     if [ -n "$PKG_NAME" ] && apt-mark showhold 2>/dev/null | grep -qx "$PKG_NAME"; then
         printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_PINNED_SKIPPED" "${CYAN}${PKG_NAME}${NC}")"
@@ -466,17 +597,43 @@ check_and_update() {
     if [[ "$REPO_URL" == *"api.github.com"* ]]; then
         repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://api\.github\.com/repos/##; s#/$##')
     else
-        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\.com/##; s#/$##; s#\.git$##')
+        repo_path=$(echo "$REPO_URL" | sed -E 's#^https?://github\.com/##; s#/$##; s#\\.git$##')
     fi
 
-    if [ -n "$tag" ]; then
-        api_url="repos/${repo_path}/releases/tags/${tag}"
+    if [[ ! "$repo_path" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+        echo -e "${RED}✖ Invalid GitHub repository identifier.${NC}" >&2
+        return 1
+    fi
+
+    if [[ -n "$EXPECTED_RELEASE_ID" ]]; then
+        if [[ ! "$EXPECTED_RELEASE_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo -e "${RED}✖ Invalid selected GitHub release identifier.${NC}" >&2
+            return 1
+        fi
+        api_url="repos/${repo_path}/releases/${EXPECTED_RELEASE_ID}"
+    elif [ -n "$tag" ]; then
+        local encoded_tag
+        encoded_tag=$(printf '%s' "$tag" | jq -sRr @uri) || return 1
+        api_url="repos/${repo_path}/releases/tags/${encoded_tag}"
     else
         api_url="repos/${repo_path}/releases/latest"
     fi
 
     local release_json
-    release_json=$(fetch_github_api "$api_url" 30)
+    if ! release_json=$(fetch_github_api "$api_url" 30); then
+        echo -e "${RED}✖ Unable to retrieve the selected GitHub release.${NC}" >&2
+        return 1
+    fi
+    if ! jq -e --arg expected_id "$EXPECTED_RELEASE_ID" '
+        type == "object" and
+        (.tag_name | type == "string" and length > 0 and (test("[[:cntrl:]]") | not)) and
+        (.assets | type == "array") and
+        ($expected_id == "" or ((.id | tostring) == $expected_id))
+    ' >/dev/null 2>&1 <<< "$release_json"; then
+        echo -e "${RED}✖ GitHub returned invalid or mismatched release metadata.${NC}" >&2
+        return 1
+    fi
+
 
     local latest_tag
     latest_tag=$(echo "$release_json" | jq -r '.tag_name // empty' 2>/dev/null | tr -d '\r')
@@ -516,7 +673,7 @@ check_and_update() {
     fi
 
     local deb_assets
-    deb_assets=$(echo "$release_json" | jq -r '.assets[]?.name // empty' | grep -iE '\.deb$')
+    deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$release_json")
     local compat_debs
     compat_debs=$(filter_compatible_debs "$deb_assets")
 
@@ -527,22 +684,78 @@ check_and_update() {
     fi
 
     local chosen_deb=""
-    chosen_deb=$(echo "$compat_debs" | grep -i "$DISTRO_PREF" | head -n1)
-    [ -z "$chosen_deb" ] && chosen_deb=$(echo "$compat_debs" | head -n1)
+    if [ -n "$EXPECTED_ASSET" ]; then
+        if ! jq -e --arg name "$EXPECTED_ASSET" '[.assets[] | select(.name == $name)] | length == 1' >/dev/null 2>&1 <<< "$release_json"; then
+            echo -e "${RED}✖ The selected asset is missing or ambiguous in the selected release.${NC}" >&2
+            return 1
+        fi
+        if [[ ! "$EXPECTED_ASSET" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*\.deb$ || "$EXPECTED_ASSET" == *".."* ]] ||
+           ! grep -Fxq -- "$EXPECTED_ASSET" <<< "$compat_debs"; then
+            echo -e "${RED}✖ The selected asset is not a safe, architecture-compatible Debian package.${NC}" >&2
+            return 1
+        fi
+        chosen_deb="$EXPECTED_ASSET"
+    else
+        chosen_deb=$(select_compatible_deb_asset "$compat_debs" "$DISTRO_PREF") || {
+            echo -e "${RED}✖ No safe compatible Debian asset could be selected.${NC}" >&2
+            return 1
+        }
+    fi
 
-    local deb_url
-    deb_url=$(echo "$release_json" | jq -r --arg name "$chosen_deb" '.assets[] | select(.name == $name) | .browser_download_url' | head -n1)
 
-    if [ -z "$deb_url" ]; then
-        echo -e "${BLUE}---------------------------------------${NC}"
-        printf "${RED}%b${NC}\n" "$(printf "$MSG_ERR_NO_COMPAT_DEB" "$ARCH")"
+    local deb_urls deb_url_count deb_url
+    deb_urls=$(jq -r --arg name "$chosen_deb" '[.assets[] | select(.name == $name) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+        echo -e "${RED}✖ Unable to parse the selected Debian asset URL.${NC}" >&2
+        return 1
+    }
+    deb_url_count=$(printf '%s\n' "$deb_urls" | awk 'NF { count++ } END { print count+0 }')
+    if [ "$deb_url_count" -ne 1 ]; then
+        echo -e "${RED}✖ The selected Debian asset does not have exactly one download URL.${NC}" >&2
+        return 1
+    fi
+    deb_url="$deb_urls"
+    if [[ ! "$deb_url" =~ ^https://[^[:space:]]+$ ]]; then
+        echo -e "${RED}✖ The selected Debian asset has an invalid download URL.${NC}" >&2
         return 1
     fi
 
-    local checksum_url
-    checksum_url=$(echo "$release_json" | jq -r --arg n "$chosen_deb" '.assets[] | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum")) | .browser_download_url' | head -n1)
-    if [ -z "$checksum_url" ]; then
-        checksum_url=$(echo "$release_json" | jq -r '.assets[] | select(.name | test("(?i)(sha256.*sums?|checksums?.*txt|.*\\.sha256$)")) | .browser_download_url' 2>/dev/null | head -n1)
+    local checksum_names checksum_assets checksum_url checksum_count
+    checksum_names=$(jq -r --arg n "$chosen_deb" '[.assets[] | select(.name == ($n + ".sha256") or .name == ($n + ".sha256sum")) | .name] | .[]' <<< "$release_json") || {
+        echo -e "${RED}✖ Unable to parse checksum asset metadata.${NC}" >&2
+        return 1
+    }
+    checksum_count=$(printf '%s\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
+
+    if [ "$checksum_count" -eq 0 ]; then
+        checksum_names=$(jq -r '[.assets[] | select(.name | test("^(SHA256SUMS|sha256sums|checksums\\.txt)$"; "i")) | .name] | .[]' <<< "$release_json") || {
+            echo -e "${RED}✖ Unable to parse checksum manifest metadata.${NC}" >&2
+            return 1
+        }
+        checksum_count=$(printf '%s\n' "$checksum_names" | awk 'NF { count++ } END { print count+0 }')
+    fi
+
+    if [ "$checksum_count" -gt 1 ]; then
+        echo -e "${RED}✖ Multiple checksum assets are ambiguous for this release.${NC}" >&2
+        return 1
+    fi
+
+    checksum_url=""
+    if [ "$checksum_count" -eq 1 ]; then
+        checksum_assets=$(jq -r --arg n "$checksum_names" '[.assets[] | select(.name == $n) | .browser_download_url // empty] | .[]' <<< "$release_json") || {
+            echo -e "${RED}✖ Unable to parse checksum download URL.${NC}" >&2
+            return 1
+        }
+        local checksum_url_count
+        checksum_url_count=$(printf '%s\n' "$checksum_assets" | awk 'NF { count++ } END { print count+0 }')
+        if [ "$checksum_url_count" -ne 1 ]; then
+            echo -e "${RED}✖ Published checksum asset has no unique download URL.${NC}" >&2
+            return 1
+        fi
+        checksum_url="$checksum_assets"
+        if [[ ! "$checksum_url" =~ ^https://github\.com/[^[:space:]]+$ ]]; then
+            echo -e "${RED}✖ The checksum asset has an invalid download URL.${NC}" >&2
+            return 1
+        fi
     fi
 
     if [ "$DRY_RUN" = "true" ]; then
@@ -573,59 +786,67 @@ check_and_update() {
 
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${YELLOW}%b${NC} ${GRAY}%s${NC}\n" "$(printf "$MSG_DOWNLOADING" "")" "${deb_url}"
-    if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 --progress-bar -o "$tmp_deb" "$deb_url"; then
+    if ! download_file_atomic "$deb_url" "$tmp_deb" 300 true; then
         echo -e "${BLUE}---------------------------------------${NC}"
         echo -e "${RED}${MSG_ERR_DOWNLOAD_FAILED}${NC}\n"
-        rm -f "$tmp_deb"
+        rm -f -- "$tmp_deb"
         return 1
     fi
 
-    local deb_arch deb_pkg
-    deb_arch=$(dpkg-deb -f "$tmp_deb" Architecture 2>/dev/null || true)
-    deb_pkg=$(dpkg-deb -f "$tmp_deb" Package 2>/dev/null || true)
+    if ! validate_deb_metadata "$tmp_deb" "$ARCH" "$PKG_NAME"; then
+        echo -e "${RED}✖ Downloaded Debian package failed metadata validation; installation aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    local deb_arch="$DEB_VALIDATED_ARCHITECTURE"
+    local deb_pkg="$DEB_VALIDATED_PACKAGE"
 
-    if [[ "$deb_arch" != "$ARCH" && "$deb_arch" != "all" ]]; then
-        echo -e "${BLUE}---------------------------------------${NC}"
-        echo -e "${RED}✖ Architecture du paquet ($deb_arch) incompatible avec le système ($ARCH).${NC}\n"
-        rm -f "$tmp_deb"
+    if ! deb_version_matches_release_floor "$DEB_VALIDATED_VERSION" "$remote_ver"; then
+        printf "${RED}Downloaded package version %s is older than the GitHub release tag %s; refusing installation.\n${NC}" \
+            "$DEB_VALIDATED_VERSION" "$latest_tag" >&2
+        rm -f -- "$tmp_deb"
         return 1
     fi
 
-    if [ -n "$PKG_NAME" ] && [ -n "$deb_pkg" ] && [ "$deb_pkg" != "$PKG_NAME" ]; then
-        echo -e "${YELLOW}⚠ Avertissement : le paquet interne s'appelle '$deb_pkg' (attendu : '$PKG_NAME').${NC}"
-    fi
-
-    if [ -n "$checksum_url" ] && [ "$checksum_url" != "null" ]; then
+    if [ -n "$checksum_url" ]; then
         echo -e "${BLUE}::${NC} ${CYAN}${MSG_VERIFYING_CHECKSUM}${NC}"
         local tmp_hash_file="$TEMP_DIR/checksums.txt"
-        if curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 -o "$tmp_hash_file" "$checksum_url"; then
-            local real_hash
-            real_hash=$(sha256sum "$tmp_deb" | awk '{print $1}')
-
-            local expected_hash
-            expected_hash=$(grep -F "$deb_filename" "$tmp_hash_file" 2>/dev/null | awk '{print $1}')
-
-            if [ -z "$expected_hash" ] && [ "$(wc -w < "$tmp_hash_file" 2>/dev/null)" -eq 1 ]; then
-                expected_hash=$(tr -d '[:space:]' < "$tmp_hash_file")
-            fi
-
-            if [ -n "$expected_hash" ]; then
-                if [ "$real_hash" = "$expected_hash" ]; then
-                    echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
-                else
-                    echo -e "${BLUE}---------------------------------------${NC}"
-                    echo -e "${RED}✖ ${MSG_ERR_CHECKSUM_FAILED}${NC}"
-                    echo -e "${GRAY}Expected: ${expected_hash}${NC}"
-                    echo -e "${GRAY}Got:      ${real_hash}${NC}"
-                    rm -f "$tmp_deb"
-                    return 1
-                fi
-            else
-                echo -e "${YELLOW}⚠ Aucun hash trouvé pour $deb_filename dans le fichier de sommes.${NC}"
-            fi
+        if ! download_file_atomic "$checksum_url" "$tmp_hash_file" 30 false; then
+            echo -e "${RED}✖ Published checksum asset could not be downloaded; refusing installation.${NC}" >&2
+            rm -f -- "$tmp_deb" "$tmp_hash_file"
+            return 1
         fi
+        if ! verify_deb_sha256 "$tmp_deb" "$tmp_hash_file" "$deb_filename"; then
+            echo -e "${RED}✖ Published checksum verification failed; refusing installation.${NC}" >&2
+            rm -f -- "$tmp_deb" "$tmp_hash_file"
+            return 1
+        fi
+        echo -e "${GREEN}✔ ${MSG_CHECKSUM_SUCCESS}${NC}"
+        rm -f -- "$tmp_hash_file"
     else
-        echo -e "${GRAY}ℹ ${MSG_NO_CHECKSUM_FOUND}${NC}"
+        echo -e "${YELLOW}ℹ No checksum asset published by this release; proceeding without publisher checksum.${NC}"
+    fi
+
+    local held_packages
+    if ! held_packages=$(apt-mark showhold 2>/dev/null); then
+        echo -e "${RED}✖ Unable to verify APT package holds; installation aborted.${NC}" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    if grep -Fxq -- "$deb_pkg" <<< "$held_packages"; then
+        printf "${YELLOW}Package %s is held; refusing to change its version.\n${NC}" "$deb_pkg" >&2
+        rm -f -- "$tmp_deb"
+        return 2
+    fi
+
+    local installed_package_version=""
+    if installed_package_version=$(dpkg-query -W -f='${Version}' "$deb_pkg" 2>/dev/null) &&
+       [ -n "$installed_package_version" ] &&
+       deb_version_is_not_newer "$DEB_VALIDATED_VERSION" "$installed_package_version"; then
+        printf "${GREEN}Package %s is already installed at version %s; downloaded version %s is not newer.\n${NC}" \
+            "$deb_pkg" "$installed_package_version" "$DEB_VALIDATED_VERSION"
+        rm -f -- "$tmp_deb"
+        return 2
     fi
 
     if [ "$ASSUME_YES" != "true" ]; then
@@ -668,23 +889,49 @@ check_and_update() {
         PKG_NAME="$deb_pkg"
     fi
 
+    local apt_plan
+    if ! apt_plan=$($ELEVATE env LC_ALL=C apt-get --simulate install "$tmp_deb" 2>&1); then
+        echo -e "${RED}✖ APT could not resolve the requested package transaction; installation aborted.${NC}" >&2
+        printf '%s\n' "$apt_plan" >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+    if apt_plan_has_removals "$apt_plan"; then
+        echo -e "${RED}✖ APT would remove or purge installed packages; refusing this transaction.${NC}" >&2
+        printf '%s\n' "$apt_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+        rm -f -- "$tmp_deb"
+        return 1
+    fi
+
     echo -e "${YELLOW}${MSG_INSTALLING_PKG}${NC}"
-    if $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get install -y "$tmp_deb"; then
+    if $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get --no-remove install -y "$tmp_deb"; then
         rm -f "$tmp_deb"
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${GREEN}%b${NC}\n\n" "$(printf "$MSG_SUCCESS_INSTALLED" "${PKG_NAME}" "${latest_tag}")"
 
-        if [ -n "$PKG_NAME" ] && ! grep -qF "${PKG_NAME}|" "$SOURCES_FILE" 2>/dev/null; then
+        if [ -n "$PKG_NAME" ] && ! awk -F'|' -v package="$PKG_NAME" '$1 == package { found = 1 } END { exit !found }' "$SOURCES_FILE"; then
             local tmp_sources
-            tmp_sources=$(mktemp)
-            cat "$SOURCES_FILE" > "$tmp_sources" 2>/dev/null || true
-            echo "${PKG_NAME}|${REPO_URL}" >> "$tmp_sources"
-            if $ELEVATE cp "$tmp_sources" "$SOURCES_FILE"; then
-                $ELEVATE chmod 644 "$SOURCES_FILE"
-            else
-                echo -e "${RED}✖ Impossible de mettre à jour $SOURCES_FILE${NC}" >&2
+            tmp_sources=$(mktemp "${TEMP_DIR}/sources.XXXXXX") || {
+                echo -e "${RED}✖ Failed to create a source-list staging file.${NC}" >&2
+                return 1
+            }
+
+            if ! cat "$SOURCES_FILE" > "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Failed to read the existing source list.${NC}" >&2
+                return 1
             fi
-            rm -f "$tmp_sources"
+            if ! printf '%s|%s\n' "$PKG_NAME" "$repo_path" >> "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Failed to stage the package tracking entry.${NC}" >&2
+                return 1
+            fi
+            if ! atomic_replace_sources "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Package installed, but its update tracking entry could not be saved.${NC}" >&2
+                return 1
+            fi
+            rm -f -- "$tmp_sources"
         fi
         return 0
     else
@@ -704,46 +951,49 @@ debup_search() {
     fi
 
     local gh_query
-    if command -v jq >/dev/null 2>&1; then
-        gh_query=$(printf '%s in:name' "$query" | jq -sRr @uri)
-    else
-        gh_query=$(printf '%s in:name' "$query" | sed \
-            -e 's/%/%25/g' \
-            -e 's/ /%20/g' \
-            -e 's/&/%26/g' \
-            -e 's/#/%23/g' \
-            -e 's/?/%3F/g' \
-            -e 's/+/%2B/g' \
-            -e 's/=/%3D/g' \
-            -e 's|/|%2F|g')
-    fi
+    gh_query=$(printf '%s in:name' "$query" | jq -sRr @uri) || {
+        echo -e "${RED}✖ Failed to encode the GitHub search query.${NC}" >&2
+        return 1
+    }
 
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_SEARCHING_GH" "$query")"
 
-    local global_targets=()
-    local global_types=()
+    local -a global_targets=()
+    local -a global_types=()
+    local -a global_release_ids=()
+    local -a global_assets=()
     local display_idx=1
+    local apt_results=""
+    local apt_search_failed=false
 
     echo -e "\n${MAGENTA}${BOLD}[ Debian / APT ]${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
-    local apt_results
-    apt_results=$(apt-cache search "$query" 2>/dev/null | head -n 5)
+
+    if ! apt_results=$(apt-cache search "$query" 2>/dev/null); then
+        apt_search_failed=true
+        apt_results=""
+    fi
+    apt_results=$(printf '%s\n' "$apt_results" | awk 'NR <= 5')
 
     if [ -n "$apt_results" ]; then
         while IFS= read -r line; do
-            [ -z "$line" ] && continue
+            [ -n "$line" ] || continue
             local apt_pkg apt_desc
-            apt_pkg=$(echo "$line" | awk '{print $1}')
-            apt_desc=$(echo "$line" | cut -d' ' -f2-)
+            read -r apt_pkg apt_desc <<< "$line"
+            [[ "$apt_pkg" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || continue
 
             global_targets[display_idx]="$apt_pkg"
             global_types[display_idx]="APT"
+            global_release_ids[display_idx]=""
+            global_assets[display_idx]=""
 
             printf "${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${GRAY}(APT)${NC}\n     ${GRAY}%s${NC}\n" \
                 "$display_idx" "$apt_pkg" "${apt_desc:0:70}"
             display_idx=$((display_idx + 1))
         done <<< "$apt_results"
+    elif [ "$apt_search_failed" = true ]; then
+        echo -e " ${YELLOW}APT search is currently unavailable.${NC}"
     else
         echo -e " ${GRAY}${MSG_SEARCH_NO_APT}${NC}"
     fi
@@ -751,46 +1001,140 @@ debup_search() {
     echo -e "\n${GREEN}${BOLD}[ GitHub Releases ]${NC}"
     echo -e "${BLUE}---------------------------------------------------------${NC}"
 
-    local raw_results
-    raw_results=$(curl -sS --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
-        "${AUTH_HEADER[@]}" \
-        "https://api.github.com/search/repositories?q=${gh_query}&sort=stars&order=desc&per_page=10")
+    local -a candidate_repos=()
+    local -a candidate_stars=()
+    local -a candidate_descs=()
+    local -A seen_repos=()
+    local catalog_file="${SCRIPT_DIR}/../share/debup/curated_db.txt"
+    local catalog_entries=""
 
-    local raw_count
-    raw_count=$(echo "$raw_results" | jq -r '.items | length' 2>/dev/null)
+    if declare -F catalog_search_repositories >/dev/null 2>&1; then
+        catalog_entries=$(catalog_search_repositories "$catalog_file" "$query") || catalog_entries=""
+    fi
 
-    if [ -n "$raw_count" ] && [ "$raw_count" -gt 0 ]; then
+    local catalog_repo catalog_package repo_key
+    while IFS='|' read -r catalog_repo catalog_package; do
+        [ -n "$catalog_repo" ] || continue
+        repo_key="${catalog_repo,,}"
+        [ -n "${seen_repos[$repo_key]+present}" ] && continue
+        seen_repos[$repo_key]=1
+        candidate_repos+=("$catalog_repo")
+        candidate_stars+=("-")
+        candidate_descs+=("Curated package: $catalog_package")
+    done <<< "$catalog_entries"
+
+    local raw_results=""
+    local github_search_failed=false
+    if raw_results=$(fetch_github_api "search/repositories?q=${gh_query}&sort=stars&order=desc&per_page=10" 10); then
+        if jq -e 'type == "object" and (.items | type == "array")' >/dev/null 2>&1 <<< "$raw_results"; then
+            local -a github_items=()
+            mapfile -t github_items < <(jq -c '
+                .items[]?
+                | select(.full_name | type == "string")
+                | {
+                    full_name: .full_name,
+                    stars: (if (.stargazers_count | type) == "number" and .stargazers_count >= 0 then (.stargazers_count | tostring) else "0" end),
+                    description: (if (.description | type) == "string" then (.description | gsub("[\\u0000-\\u001F\\u007F]"; " ")) else "" end)
+                  }
+            ' <<< "$raw_results")
+
+            local candidate_record
+            for candidate_record in "${github_items[@]}"; do
+                local repo_name stars description
+                repo_name=$(jq -r '.full_name' <<< "$candidate_record")
+                [[ "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || continue
+                repo_key="${repo_name,,}"
+                [ -n "${seen_repos[$repo_key]+present}" ] && continue
+                seen_repos[$repo_key]=1
+                stars=$(jq -r '.stars' <<< "$candidate_record")
+                description=$(jq -r '.description' <<< "$candidate_record")
+                candidate_repos+=("$repo_name")
+                candidate_stars+=("$stars")
+                candidate_descs+=("$description")
+            done
+        else
+            github_search_failed=true
+        fi
+    else
+        github_search_failed=true
+    fi
+
+    if [ "${#candidate_repos[@]}" -eq 0 ]; then
+        if [ "$github_search_failed" = true ]; then
+            echo -e " ${YELLOW}GitHub search is currently unavailable.${NC}"
+        else
+            printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
+        fi
+    else
+        if [ "$github_search_failed" = true ]; then
+            echo -e " ${YELLOW}GitHub search API unavailable; checking curated entries only.${NC}"
+        fi
         echo -e "${GRAY}${MSG_VERIFYING_DEBS}${NC}"
 
         local gh_valid=0
+        local release_check_failed=0
+        local candidate_index=0
+        local candidate_repo candidate_stars_value candidate_desc check_release deb_assets compatible_debs chosen_asset release_id release_tag
 
-        while IFS=$'\t' read -r repo stars desc; do
-            local check_release
-            check_release=$(fetch_github_api "repos/${repo}/releases/latest" 10)
+        for candidate_repo in "${candidate_repos[@]}"; do
+            candidate_stars_value="${candidate_stars[$candidate_index]}"
+            candidate_desc="${candidate_descs[$candidate_index]}"
+            candidate_index=$((candidate_index + 1))
 
-            local deb_assets
-            deb_assets=$(echo "$check_release" | jq -r '.assets[]?.name // empty' 2>/dev/null | grep -iE '\.deb$')
-            local has_deb
-            has_deb=$(filter_compatible_debs "$deb_assets" | head -n1)
+            if ! check_release=$(fetch_github_api "repos/${candidate_repo}/releases/latest" 10); then
+                release_check_failed=$((release_check_failed + 1))
+                continue
+            fi
+            if ! jq -e '
+                type == "object" and
+                (.id | type == "number" and . > 0) and
+                (.tag_name | type == "string" and length > 0 and (test("[[:cntrl:]]") | not)) and
+                (.assets | type == "array")
+            ' >/dev/null 2>&1 <<< "$check_release"; then
+                release_check_failed=$((release_check_failed + 1))
+                continue
+            fi
 
-            if [ -n "$has_deb" ]; then
-                global_targets[display_idx]="$repo"
+            release_id=$(jq -r '.id' <<< "$check_release")
+            release_tag=$(jq -r '.tag_name' <<< "$check_release")
+            deb_assets=$(jq -r '.assets[]? | select(.name | type == "string") | .name | select(test("\\.deb$"; "i"))' <<< "$check_release")
+            compatible_debs=$(filter_compatible_debs "$deb_assets")
+            chosen_asset=$(select_compatible_deb_asset "$compatible_debs" "$DISTRO_PREF") || chosen_asset=""
+            if [ -n "$chosen_asset" ] && ! validate_release_asset_selection "$check_release" "$release_id" "$chosen_asset"; then
+                chosen_asset=""
+                release_check_failed=$((release_check_failed + 1))
+            fi
+
+            if [ -n "$chosen_asset" ]; then
+                global_targets[display_idx]="$candidate_repo"
                 global_types[display_idx]="GH"
+                global_release_ids[display_idx]="$release_id"
+                global_assets[display_idx]="$chosen_asset"
 
-                printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\n     ${GRAY}%s${NC}\n" \
-                    "$display_idx" "$repo" "$stars" "${desc:0:70}"
+                if [ "$candidate_stars_value" = "-" ]; then
+                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${CYAN}(curated)${NC}\n     ${GRAY}%s${NC}\n" \
+                        "$display_idx" "$candidate_repo" "${candidate_desc:0:70}"
+                else
+                    printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${YELLOW}★ %-6s${NC}\n     ${GRAY}%s${NC}\n" \
+                        "$display_idx" "$candidate_repo" "$candidate_stars_value" "${candidate_desc:0:70}"
+                fi
+                printf "     ${CYAN}Release %s — %s${NC}\n" "$release_tag" "$chosen_asset"
 
                 display_idx=$((display_idx + 1))
                 gh_valid=$((gh_valid + 1))
                 [ "$gh_valid" -ge 5 ] && break
             fi
-        done < <(echo "$raw_results" | jq -r '.items[]? | [.full_name, (.stargazers_count|tostring), (.description // "")] | @tsv')
+        done
 
         if [ "$gh_valid" -eq 0 ]; then
-            printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_DEB_IN_REPOS" "$query")"
+            if [ "$release_check_failed" -gt 0 ]; then
+                printf " ${YELLOW}GitHub release verification was incomplete; no package was selected.${NC}\n" >&2
+            else
+                printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_DEB_IN_REPOS" "$query")"
+            fi
+        elif [ "$release_check_failed" -gt 0 ]; then
+            printf " ${YELLOW}%d repository/repositories could not be verified; the displayed candidates were checked successfully.${NC}\n" "$release_check_failed" >&2
         fi
-    else
-        printf " ${GRAY}%b${NC}\n" "$(printf "$MSG_NO_REPOS_FOUND" "$query")"
     fi
 
     local total_options=$((display_idx - 1))
@@ -802,80 +1146,47 @@ debup_search() {
     fi
 
     local raw_input=""
-    prompt_read raw_input "${MSG_PROMPT_SELECT_NUM:-Enter n° of packages to install (e.g., 1 2 3 or 1-3) [default: cancel]: }" || raw_input=""
+    prompt_read raw_input "${MSG_PROMPT_SELECT_NUM:-Enter package numbers (e.g. 1 2 3 or 1-3) [default: cancel]: }" || raw_input=""
     [ -z "$raw_input" ] && { echo -e "${CYAN}${MSG_OP_CANCELED}${NC}"; return 0; }
 
-    local -a packagesnum=()
-    read -ra packagesnum <<< "${raw_input//,/ }"
-
-    local -a selected_indices=()
-
-    for token in "${packagesnum[@]}"; do
-        if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-            local start="${BASH_REMATCH[1]}"
-            local end="${BASH_REMATCH[2]}"
-            if (( start > 0 && end <= total_options && start <= end )); then
-                for ((idx=start; idx<=end; idx++)); do
-                    selected_indices+=("$idx")
-                done
-            fi
-        elif [[ "$token" =~ ^[0-9]+$ ]]; then
-            if (( token >= 1 && token <= total_options )); then
-                selected_indices+=("$token")
-            fi
-        fi
-    done
-
-    [ "${#selected_indices[@]}" -eq 0 ] && { echo -e "${RED}${MSG_OP_CANCELED}${NC}"; return 0; }
+    local selected_output
+    if ! selected_output=$(parse_search_selection "$raw_input" "$total_options"); then
+        echo -e "${RED}Invalid selection. Use only displayed numbers and valid ranges (for example: 1 2, 1,2, or 1-3). No packages were installed.${NC}" >&2
+        return 2
+    fi
 
     local -a unique_indices=()
-    read -ra unique_indices < <(printf "%s\n" "${selected_indices[@]}" | sort -nu)
+    mapfile -t unique_indices <<< "$selected_output"
 
+    local choice selected_target selected_type install_failed=0
     for choice in "${unique_indices[@]}"; do
-        local selected_target="${global_targets[choice]}"
-        local selected_type="${global_types[choice]}"
+        selected_target="${global_targets[choice]}"
+        selected_type="${global_types[choice]}"
 
         echo -e "${BLUE}---------------------------------------${NC}"
 
         if [ "$selected_type" = "APT" ]; then
             printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${selected_target}${NC}${CYAN}")"
-            if [ "$DRY_RUN" = "true" ]; then
-                printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_INSTALL" "$selected_target")"
-            else
-                run_apt_styled install -y "$selected_target"
+            if ! install_apt_package "$selected_target" true; then
+                install_failed=1
+                printf "${RED}✖ APT package installation failed: %s${NC}\n" "$selected_target" >&2
             fi
         else
             local selected_repo="$selected_target"
+            local selected_release_id="${global_release_ids[choice]}"
+            local selected_asset="${global_assets[choice]}"
             printf "${CYAN}%b${NC} ${GREEN}%s${NC}...\n" "$(printf "$MSG_INSPECTING_ASSETS" "")" "$selected_repo"
+            printf "${CYAN}Selected release ID: %s; asset: %s${NC}\n" "$selected_release_id" "$selected_asset"
 
-            local release_data
-            release_data=$(fetch_github_api "repos/${selected_repo}/releases/latest" 10)
-
-            local deb_assets
-            deb_assets=$(echo "$release_data" | jq -r '.assets[]?.name // empty' 2>/dev/null | grep -iE '\.deb$')
-
-            if [ -z "$deb_assets" ]; then
-                echo -e "${RED}${MSG_ERR_NO_DEB_IN_RELEASE}${NC}"
-                continue
+            check_and_update "$selected_repo" "" false "$selected_release_id" "$selected_asset"
+            local selected_install_status=$?
+            if [ "$selected_install_status" -eq 1 ]; then
+                install_failed=1
             fi
-
-            local matching_deb
-            matching_deb=$(filter_compatible_debs "$deb_assets")
-
-            if [ -z "$matching_deb" ]; then
-                printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_WARN_NO_ARCH_MATCH" "$ARCH")"
-                local force_install=""
-                prompt_read force_install "$MSG_PROMPT_FORCE_INSTALL" || force_install="n"
-                if [[ ! "$force_install" =~ ^[oOyYsSjJ]$ ]]; then
-                    echo -e "${CYAN}${MSG_INSTALL_CANCELED}${NC}"
-                    continue
-                fi
-            fi
-
-            echo -e "${GREEN}${MSG_COMPAT_PKG_DETECTED}${NC}"
-            check_and_update "$selected_repo" "" false
         fi
     done
+
+    return "$install_failed"
 }
 
 debup_info() {
@@ -892,7 +1203,10 @@ debup_info() {
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_FETCHING_METADATA" "${GREEN}${target}${CYAN}")"
 
     local repo_data
-    repo_data=$(fetch_github_api "repos/${target}" 30)
+    if ! repo_data=$(fetch_github_api "repos/${target}" 30); then
+        printf "${RED}GitHub repository metadata could not be retrieved; no cached fallback was used.\n${NC}" >&2
+        return 1
+    fi
 
     local not_found
     not_found=$(echo "$repo_data" | jq -r '.message // empty' 2>/dev/null)
@@ -902,7 +1216,10 @@ debup_info() {
     fi
 
     local release_data
-    release_data=$(fetch_github_api "repos/${target}/releases/latest" 15)
+    if ! release_data=$(fetch_github_api "repos/${target}/releases/latest" 15); then
+        printf "${RED}GitHub release metadata could not be retrieved.\n${NC}" >&2
+        return 1
+    fi
 
     local tag_name
     tag_name=$(echo "$release_data" | jq -r '.tag_name // empty' 2>/dev/null)
@@ -945,16 +1262,26 @@ debup_info() {
 debup_check_updates() {
     echo -e "${BLUE}---------------------------------------${NC}"
     printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPDATE_SYNCING_APT"
+    local apt_sync_failed=0
     if [ "$DRY_RUN" = "true" ]; then
         printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_UPDATE")"
-    else
-        run_apt_styled update
+    elif ! run_apt_styled update; then
+        printf "${YELLOW}⚠ APT index refresh failed; native package update status is unknown.\n${NC}" >&2
+        apt_sync_failed=1
     fi
 
-    local apt_upgradable
-    apt_upgradable=$(LC_ALL=C apt list --upgradable 2>/dev/null | grep -v "^Listing\.\.\.")
+    local apt_upgradable=""
     local apt_count=0
-    [ -n "$apt_upgradable" ] && apt_count=$(echo "$apt_upgradable" | grep -c '/' || true)
+    if [ "$apt_sync_failed" -eq 0 ]; then
+        local apt_list_output
+        if apt_list_output=$(LC_ALL=C apt list --upgradable 2>/dev/null); then
+            apt_upgradable=$(printf '%s\n' "$apt_list_output" | grep -v "^Listing\\.\\.\\." || true)
+            [ -n "$apt_upgradable" ] && apt_count=$(printf '%s\n' "$apt_upgradable" | grep -c '/' || true)
+        else
+            printf "${YELLOW}⚠ Unable to read the APT upgrade list; native package update status is unknown.\n${NC}" >&2
+            apt_sync_failed=1
+        fi
+    fi
 
     echo -e ""
     printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPDATE_CHECKING_GH"
@@ -962,10 +1289,14 @@ debup_check_updates() {
         echo -e "${GRAY}  ${MSG_NO_TRACKED_PACKAGES}${NC}"
         echo -e "${BLUE}---------------------------------------${NC}"
         [ "$apt_count" -gt 0 ] && printf "${YELLOW}ℹ %b${NC}\n" "$(printf "$MSG_UPDATE_APT_AVAIL_HINT" "$apt_count")"
+        if [ "$apt_sync_failed" -eq 1 ]; then
+            return 1
+        fi
         return 0
     fi
 
     local gh_upgrades=()
+    local gh_check_failed=0
     while IFS='|' read -u 3 -r pkg repo || [ -n "$pkg" ]; do
         [[ "$pkg" =~ ^#.* ]] && continue
         [ -z "$pkg" ] && continue
@@ -977,9 +1308,18 @@ debup_check_updates() {
         local repo_path
         repo_path=$(echo "$repo" | sed -E 's#^https?://github.com/##; s#/$##; s#\.git$##')
         local release_json
-        release_json=$(fetch_github_api "repos/${repo_path}/releases/latest" 15)
+        if ! release_json=$(fetch_github_api "repos/${repo_path}/releases/latest" 15); then
+            printf "${YELLOW}⚠ Unable to verify updates for %s (%s).\n${NC}" "$pkg" "$repo_path" >&2
+            gh_check_failed=1
+            continue
+        fi
         local latest_tag
         latest_tag=$(echo "$release_json" | jq -r '.tag_name // empty' 2>/dev/null | tr -d '\r')
+        if [ -z "$latest_tag" ]; then
+            printf "${YELLOW}⚠ No valid latest release was returned for %s (%s).\n${NC}" "$pkg" "$repo_path" >&2
+            gh_check_failed=1
+            continue
+        fi
         local remote_ver
         remote_ver=$(normalize_gh_tag "$latest_tag")
 
@@ -998,17 +1338,25 @@ debup_check_updates() {
             printf "${CYAN}%-20s${NC} ${YELLOW}%-12s${NC} -> ${GREEN}%-12s${NC} ${GRAY}(%s)${NC}\n" \
                 "$up_pkg" "$up_loc" "$up_rem" "$up_repo"
         done
+    elif [ "$gh_check_failed" -eq 1 ]; then
+        printf "${YELLOW}⚠ Some tracked GitHub packages could not be checked; their update status is unknown.\n${NC}" >&2
     else
         printf "${GREEN}✔ %b${NC}\n" "$MSG_UPDATE_ALL_GH_UPTODATE"
     fi
 
     echo -e "${BLUE}---------------------------------------${NC}"
-    if [ "$apt_count" -gt 0 ] || [ "${#gh_upgrades[@]}" -gt 0 ]; then
+    if [ "$gh_check_failed" -eq 1 ] || [ "$apt_sync_failed" -eq 1 ]; then
+        printf "${YELLOW}⚠ Update check incomplete: at least one package source could not be verified.\n${NC}" >&2
+    elif [ "$apt_count" -gt 0 ] || [ "${#gh_upgrades[@]}" -gt 0 ]; then
         printf "${YELLOW}★ %b${NC}\n" "$(printf "$MSG_UPDATE_SUMMARY_TOTAL" "$apt_count" "${#gh_upgrades[@]}")"
         printf "${GRAY}%b${NC}\n" "$MSG_UPDATE_APPLY_HINT"
     else
         printf "${GREEN}✔ %b${NC}\n" "$MSG_UPDATE_SYSTEM_UPTODATE"
     fi
+    if [ "$gh_check_failed" -eq 1 ] || [ "$apt_sync_failed" -eq 1 ]; then
+        return 1
+    fi
+
 }
 
 debup_stats() {
@@ -1074,10 +1422,26 @@ debup_clean() {
         return 0
     fi
 
-    $ELEVATE apt-get clean
-    $ELEVATE apt-get autoclean -y >/dev/null 2>&1
+    local clean_failed=0
+    if ! $ELEVATE apt-get clean; then
+        echo -e "${YELLOW}⚠ APT clean failed.${NC}" >&2
+        clean_failed=1
+    fi
+    if ! $ELEVATE apt-get autoclean -y; then
+        echo -e "${YELLOW}⚠ APT autoclean failed.${NC}" >&2
+        clean_failed=1
+    fi
 
-    rm -rf "${CACHE_API_DIR:?}"/* >/dev/null 2>&1
+    if [ -d "$CACHE_API_DIR" ] &&
+       ! find "$CACHE_API_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; then
+        echo -e "${YELLOW}⚠ GitHub API cache cleanup failed.${NC}" >&2
+        clean_failed=1
+    fi
+
+    if [ "$clean_failed" -eq 1 ]; then
+        echo -e "${RED}✖ Cleanup completed with errors; review the warnings above.${NC}" >&2
+        return 1
+    fi
 
     echo -e "${GREEN}✔ ${MSG_CLEAN_SUCCESS}${NC}"
     echo -e "${BLUE}---------------------------------------${NC}"
@@ -1118,25 +1482,30 @@ debup_remove() {
 
     printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_PURGING" "${PKG}")"
     if run_apt_styled purge -y "$PKG"; then
-        if [ -f "$SOURCES_FILE" ] && grep -qF "${PKG}|" "$SOURCES_FILE" 2>/dev/null; then
-            local tmp_sources pkg_prefix
-            tmp_sources=$(mktemp) || { echo -e "${RED}✖ mktemp failed${NC}" >&2; return 1; }
-            pkg_prefix="${PKG}|"
-            while IFS= read -r line || [ -n "$line" ]; do
-                case "$line" in
-                    "${pkg_prefix}"*) continue ;;
-                    *) printf '%s\n' "$line" >> "$tmp_sources" ;;
-                esac
-            done < "$SOURCES_FILE"
-            if $ELEVATE cp "$tmp_sources" "$SOURCES_FILE"; then
-                $ELEVATE chmod 644 "$SOURCES_FILE"
-                printf "${GREEN}%b${NC}\n" "$(printf "$MSG_REMOVE_TRACK_SUCCESS" "${PKG}")"
-            else
-                echo -e "${RED}✖ Impossible de mettre à jour $SOURCES_FILE${NC}" >&2
+        if [ -f "$SOURCES_FILE" ] && awk -F'|' -v package="$PKG" '$1 == package { found = 1 } END { exit !found }' "$SOURCES_FILE"; then
+            local tmp_sources
+            tmp_sources=$(mktemp "${TEMP_DIR}/sources.XXXXXX") || {
+                echo -e "${RED}✖ Failed to create a source-list staging file.${NC}" >&2
+                return 1
+            }
+
+            if ! awk -F'|' -v package="$PKG" '$1 != package' "$SOURCES_FILE" > "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Failed to filter the existing source list.${NC}" >&2
+                return 1
             fi
-            rm -f "$tmp_sources"
+            if ! atomic_replace_sources "$tmp_sources"; then
+                rm -f -- "$tmp_sources"
+                echo -e "${RED}✖ Package was purged, but its tracking entry could not be removed.${NC}" >&2
+                return 1
+            fi
+            rm -f -- "$tmp_sources"
+            printf "${GREEN}%b${NC}\n" "$(printf "$MSG_REMOVE_TRACK_SUCCESS" "${PKG}")"
         fi
-        $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1 || true
+
+        if ! $ELEVATE env DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y >/dev/null 2>&1; then
+            echo -e "${YELLOW}⚠ Package was purged, but APT autoremove did not complete successfully.${NC}" >&2
+        fi
         printf "${GREEN}✔ %b${NC}\n" "$(printf "$MSG_APT_PURGE_SUCCESS" "${PKG}")"
     else
         printf "${RED}✖ %b${NC}\n" "$(printf "$MSG_APT_PURGE_FAIL" "${PKG}")"
@@ -1163,20 +1532,14 @@ case "$1" in
             check_and_update "$TARGET" "" "$ASSUME_YES"
         else
             printf "${BLUE}::${NC} ${CYAN}%b${NC}\n" "$(printf "$MSG_APT_INSTALLING" "${BOLD}${TARGET}${NC}${CYAN}")"
-            if [ "$DRY_RUN" = "true" ]; then
-                printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_APT_INSTALL" "$TARGET")"
-            else
-                apt_args=("install")
-                [ "$ASSUME_YES" = "true" ] && apt_args+=("-y")
-                apt_args+=("$TARGET")
-
-                if run_apt_styled "${apt_args[@]}"; then
-                    echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-Paquet APT %s installé.}" "${TARGET}")"
-                else
-                    echo -e "${BLUE}---------------------------------------${NC}"
-                    printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
-                fi
+            if ! install_apt_package "$TARGET" "$ASSUME_YES"; then
+                echo -e "${BLUE}---------------------------------------${NC}"
+                printf "${RED}✖ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_FAIL:-APT package installation failed: %s}" "${TARGET}")"
+                exit 1
+            fi
+            if [ "$DRY_RUN" != "true" ]; then
+                echo -e "${BLUE}---------------------------------------${NC}"
+                printf "${GREEN}✔ %b${NC}\n\n" "$(printf "${MSG_APT_INSTALL_SUCCESS:-APT package %s installed.}" "${TARGET}")"
             fi
         fi
         ;;
@@ -1198,12 +1561,27 @@ case "$1" in
 
         echo -e "${BLUE}---------------------------------------${NC}"
         printf "${BLUE}::${NC} ${BOLD}%b${NC}\n" "$MSG_UPGRADE_APT_TITLE"
+        apt_upgrade_failed=0
         if [ "$DRY_RUN" = "true" ]; then
             printf "${YELLOW}%b${NC}\n" "$MSG_DRY_APT_UPGRADE"
         else
-            apt_args=("dist-upgrade")
-            [ "$ASSUME_YES" = "true" ] && apt_args+=("-y")
-            run_apt_styled "${apt_args[@]}"
+            apt_upgrade_plan=""
+            if ! apt_upgrade_plan=$($ELEVATE env LC_ALL=C apt-get --simulate dist-upgrade 2>&1); then
+                echo -e "${RED}✖ APT could not simulate the system upgrade; no APT changes were made.${NC}" >&2
+                printf '%s\n' "$apt_upgrade_plan" >&2
+                apt_upgrade_failed=1
+            elif apt_plan_has_removals "$apt_upgrade_plan"; then
+                echo -e "${RED}✖ APT system upgrade would remove or purge installed packages; refusing the transaction.${NC}" >&2
+                printf '%s\n' "$apt_upgrade_plan" | awk '$1 == "Remv" || $1 == "Purg" { print }' >&2
+                apt_upgrade_failed=1
+            else
+                apt_args=(--no-remove dist-upgrade)
+                [ "$ASSUME_YES" = "true" ] && apt_args+=("-y")
+                if ! run_apt_styled "${apt_args[@]}"; then
+                    echo -e "${RED}✖ APT system upgrade failed.${NC}" >&2
+                    apt_upgrade_failed=1
+                fi
+            fi
         fi
 
         echo -e ""
@@ -1212,11 +1590,15 @@ case "$1" in
 
         if [ ! -f "$SOURCES_FILE" ] || [ ! -s "$SOURCES_FILE" ]; then
             echo -e "${YELLOW}${MSG_NO_TRACKED_PACKAGES}${NC}"
+            if [ "$apt_upgrade_failed" -eq 1 ]; then
+                exit 1
+            fi
             exit 0
         fi
 
         updated_count=0
         total_count=0
+        failed_count=0
 
         while IFS='|' read -u 3 -r pkg repo || [ -n "$pkg" ]; do
             [[ "$pkg" =~ ^#.* ]] && continue
@@ -1228,11 +1610,15 @@ case "$1" in
 
             if [ "$status" -eq 0 ]; then
                 updated_count=$((updated_count + 1))
+            elif [ "$status" -eq 1 ]; then
+                failed_count=$((failed_count + 1))
             fi
         done 3< "$SOURCES_FILE"
 
         echo -e "${BLUE}---------------------------------------${NC}"
-        if [ "$updated_count" -gt 0 ]; then
+        if [ "$failed_count" -gt 0 ]; then
+            printf "${YELLOW}⚠ %d tracked GitHub package(s) could not be updated or verified.\n${NC}" "$failed_count" >&2
+        elif [ "$updated_count" -gt 0 ]; then
             if [ "$DRY_RUN" = "true" ]; then
                 printf "${YELLOW}%b${NC}\n" "$(printf "$MSG_DRY_UPGRADE_SUMMARY" "$updated_count" "$total_count")"
             else
@@ -1241,7 +1627,9 @@ case "$1" in
         else
             printf "${GREEN}%b${NC}\n" "$(printf "$MSG_ALL_UP_TO_DATE" "$total_count")"
         fi
-        echo -e "${BLUE}---------------------------------------${NC}"
+        if [ "$apt_upgrade_failed" -eq 1 ] || [ "$failed_count" -gt 0 ]; then
+            exit 1
+        fi
         ;;
 
     list|-l)
