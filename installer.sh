@@ -261,7 +261,7 @@ select_release_deb_url() {
     esac
 
     if ! jq -e '.assets | type == "array"' >/dev/null 2>&1 <<<"$release_json"; then
-        printf 'Invalid GitHub release asset metadata.\\n' >&2
+        printf 'Invalid GitHub release asset metadata.\n' >&2
         return 1
     fi
 
@@ -289,17 +289,17 @@ select_release_deb_url() {
         fi
 
         if (("${#candidates[@]}" > 1)); then
-            printf 'Ambiguous %s-compatible Debian package assets in release metadata.\\n' "$priority" >&2
+            printf 'Ambiguous %s-compatible Debian package assets in release metadata.\n' "$priority" >&2
             return 1
         fi
         if (("${#candidates[@]}" == 1)); then
             selected="${candidates[0]}"
-            printf '%s\\n' "$selected"
+            printf '%s\n' "$selected"
             return 0
         fi
     done
 
-    printf 'No Debian package compatible with architecture %s was found.\\n' "$architecture" >&2
+    printf 'No Debian package compatible with architecture %s was found.\n' "$architecture" >&2
     return 1
 }
 
