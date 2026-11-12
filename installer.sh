@@ -195,7 +195,7 @@ verify_sha256() {
     fi
 
     local checksums
-    checksums=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+    checksums=$(curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
         "$sha_url" 2>/dev/null || true)
 
     if [[ -z "$checksums" ]]; then
@@ -459,7 +459,7 @@ case "$choice" in
         SOURCES_LIST="/etc/apt/sources.list.d/debup.list"
 
         echo -e "${CYAN}[*] Checking GPG key availability...${NC}"
-        HTTP_PROBE=$(curl -sIL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+        HTTP_PROBE=$(curl --proto '=https' --proto-redir '=https' -sIL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
             -o /dev/null -w '%{http_code} %{content_type}' "$REPO_GPG_URL" 2>/dev/null || echo "000 unknown")
 
         HTTP_CODE="${HTTP_PROBE%% *}"
@@ -482,7 +482,7 @@ case "$choice" in
         chmod 600 "$TMP_KEY"
         _DEBUP_CLEANUP_TMPKEY="$TMP_KEY"
 
-        if ! curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+        if ! curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
                 -o "$TMP_KEY" "$REPO_GPG_URL"; then
             echo -e "${RED}✖ Failed to fetch GPG key from ${REPO_GPG_URL}${NC}" >&2
             exit 1
@@ -542,7 +542,7 @@ case "$choice" in
             $SUDO apt-get update -qq && $SUDO apt-get install -y -qq jq >/dev/null
         fi
 
-        RELEASE_JSON=$(curl -sSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
+        RELEASE_JSON=$(curl --proto '=https' --proto-redir '=https' -sSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 1 \
             -H "User-Agent: debup-installer" "$API_URL")
 
         LATEST_TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name // empty' 2>/dev/null)
@@ -569,22 +569,6 @@ case "$choice" in
         fi
 
         if [ -z "$DEB_URL" ]; then
-            DEB_URL=$(echo "$RELEASE_JSON" | jq -r '
-                .assets[]
-                | select(.name | endswith(".deb"))
-                | select(.name | test("(^|[-_])all([-_.]|$)"; "i"))
-                | .browser_download_url
-            ' | head -n1)
-
-            if [ -n "$DEB_URL" ]; then
-                echo -e "${GRAY}[i] Using architecture-independent package (all).${NC}" >&2
-            else
-                DEB_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n1)
-                echo -e "${YELLOW}[!] No .deb matching architecture '$ARCH'. Falling back to first .deb.${NC}" >&2
-            fi
-        fi
-
-        if [ -z "$DEB_URL" ]; then
             echo -e "${RED}Error: No .deb package found in release ${LATEST_TAG}.${NC}" >&2
             exit 1
         fi
@@ -593,20 +577,39 @@ case "$choice" in
         DEB_FILE="${TEMP_DIR}/${DEB_NAME}"
 
         echo -e "${BLUE}[*] Downloading package:${NC} ${GRAY}${DEB_URL}${NC}"
-        if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 \
+        if ! curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 1 \
                 --progress-bar -o "$DEB_FILE" "$DEB_URL"; then
             echo -e "${RED}✖ Failed to download ${DEB_URL}${NC}" >&2
             exit 1
         fi
 
-        if command -v dpkg-deb >/dev/null 2>&1; then
-            DEB_ARCH=$(dpkg-deb -f "$DEB_FILE" Architecture 2>/dev/null || true)
-            if [[ -n "$DEB_ARCH" && "$DEB_ARCH" != "$ARCH" && "$DEB_ARCH" != "all" ]]; then
-                echo -e "${RED}✖ Downloaded package architecture (${DEB_ARCH}) is incompatible with your system (${ARCH}).${NC}" >&2
-                exit 1
-            fi
-        else
-            echo -e "${YELLOW}[!] 'dpkg-deb' not found. Skipping post-download architecture check.${NC}" >&2
+        DEB_PACKAGE=$(dpkg-deb -f "$DEB_FILE" Package 2>/dev/null) || {
+            echo -e "${RED}✖ Unable to read the downloaded Debian package metadata.${NC}" >&2
+            exit 1
+        }
+        DEB_ARCH=$(dpkg-deb -f "$DEB_FILE" Architecture 2>/dev/null) || {
+            echo -e "${RED}✖ Unable to read the downloaded package architecture.${NC}" >&2
+            exit 1
+        }
+        DEB_VERSION=$(dpkg-deb -f "$DEB_FILE" Version 2>/dev/null) || {
+            echo -e "${RED}✖ Unable to read the downloaded package version.${NC}" >&2
+            exit 1
+        }
+
+        if [[ "$DEB_PACKAGE" != "debup" ]]; then
+            echo -e "${RED}✖ Unexpected package name '${DEB_PACKAGE}'; expected 'debup'.${NC}" >&2
+            exit 1
+        fi
+        if [[ -z "$DEB_ARCH" || ( "$DEB_ARCH" != "$ARCH" && "$DEB_ARCH" != "all" ) ]]; then
+            echo -e "${RED}✖ Downloaded package architecture ('${DEB_ARCH:-missing}') is incompatible with your system ('$ARCH').${NC}" >&2
+            exit 1
+        fi
+
+        EXPECTED_VERSION="${LATEST_TAG#v}"
+        if [[ -z "$DEB_VERSION" ]] ||
+           ! dpkg --compare-versions "$DEB_VERSION" ge "$EXPECTED_VERSION" 2>/dev/null; then
+            echo -e "${RED}✖ Downloaded package version ('${DEB_VERSION:-missing}') is older than or incompatible with release '${LATEST_TAG}'.${NC}" >&2
+            exit 1
         fi
 
         SHA_URL=$(find_checksum_url "$RELEASE_JSON" "$DEB_NAME" || true)
