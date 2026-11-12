@@ -77,6 +77,15 @@ Desde una instalación de release o fuentes:
 dbp upgrade
 ```
 
+## 🖥️ Vista previa del instalador
+
+El instalador interactivo ofrece tres métodos: el repositorio APT oficial, la última versión de GitHub o una compilación local desde el código fuente.
+
+<div align="center">
+  <img src="assets/installer_menu1.jpg" alt="Instalador interactivo de debup con los tres métodos de instalación" width="560">
+  <p><em>Elige el método que mejor se adapte a tu sistema.</em></p>
+</div>
+
 ## Inicio rápido
 
 ```bash

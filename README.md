@@ -75,6 +75,15 @@ For release/source installations:
 dbp upgrade
 ```
 
+## 🖥️ Installer preview
+
+The interactive installer offers three installation paths: the official APT repository, the latest GitHub release, or a local build from source.
+
+<div align="center">
+  <img src="assets/installer_menu1.jpg" alt="debup interactive installer showing the three installation methods" width="560">
+  <p><em>Choose the installation method that best fits your system.</em></p>
+</div>
+
 ## ⚡ Quick start
 
 ```bash
