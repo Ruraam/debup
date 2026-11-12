@@ -150,10 +150,18 @@ jobs:
           SignWith: $KEY_ID
           EOF
 
+          # GitHub Actions cannot answer an interactive GPG passphrase prompt.
+          # Require the dedicated CI signing key to be usable non-interactively.
+          printf '%s\n' 'debup signing-key preflight' > "$RUNNER_TEMP/debup-signing-check.txt"
+          gpg --batch --yes --local-user "$KEY_ID" \
+            --detach-sign \
+            --output "$RUNNER_TEMP/debup-signing-check.sig" \
+            "$RUNNER_TEMP/debup-signing-check.txt"
+
           cd public
           for deb in ../debs/*.deb; do
             [[ -f "$deb" ]] || continue
-            reprepro --ask-passphrase includedeb stable "$deb"
+            reprepro includedeb stable "$deb"
           done
 
           gpg --batch --armor --export "$KEY_ID" > debup.gpg
