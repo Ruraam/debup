@@ -152,6 +152,7 @@ jobs:
           grep -Fq 'DEB_ARCH=$(dpkg-deb -f "$DEB_FILE" Architecture' installer.sh
           grep -Fq 'DEB_VERSION=$(dpkg-deb -f "$DEB_FILE" Version' installer.sh
           ! grep -Fq 'Falling back to first .deb' installer.sh
+          grep -Fq 'Architectures: amd64 arm64 armhf i386' .github/workflows/apt-repo.yml
           grep -Fq 'chmod 700 "$user_conf_dir"' debup-pkg/usr/local/bin/debup
           grep -Fq 'mv -f -- "$user_tmp" "$user_conf_dir/token"' debup-pkg/usr/local/bin/debup
           grep -Fq 'debup_info() {' debup-pkg/usr/local/bin/debup
