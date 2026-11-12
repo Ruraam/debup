@@ -263,22 +263,22 @@ armhf_release='{"assets":[{"name":"debup_armv7l.deb","browser_download_url":"htt
 
 wrong_arch_release='{"assets":[{"name":"debup_arm64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/debup_arm64.deb"}]}'
 if select_release_deb_url "$wrong_arch_release" amd64 >/dev/null 2>&1; then
-    printf 'FAIL: incompatible architecture fallback was accepted\\n' >&2
+    printf 'FAIL: incompatible architecture fallback was accepted\n' >&2
     exit 1
 fi
 
 ambiguous_arch_release='{"assets":[{"name":"debup_amd64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/a.deb"},{"name":"debup-x86_64.deb","browser_download_url":"https://github.com/Ruraam/debup/releases/download/v1/b.deb"}]}'
 if select_release_deb_url "$ambiguous_arch_release" amd64 >/dev/null 2>&1; then
-    printf 'FAIL: ambiguous architecture assets were accepted\\n' >&2
+    printf 'FAIL: ambiguous architecture assets were accepted\n' >&2
     exit 1
 fi
 
 external_arch_release='{"assets":[{"name":"debup_amd64.deb","browser_download_url":"https://attacker.invalid/debup_amd64.deb"}]}'
 if select_release_deb_url "$external_arch_release" amd64 >/dev/null 2>&1; then
-    printf 'FAIL: external package download URL was accepted\\n' >&2
+    printf 'FAIL: external package download URL was accepted\n' >&2
     exit 1
 fi
 
-printf 'PASS: installer architecture-aware release asset selection\\n'
+printf 'PASS: installer architecture-aware release asset selection\n'
 
 printf 'PASS: Debian metadata, checksums, release asset validation, version comparisons, APT transaction and atomic download tests\n'
