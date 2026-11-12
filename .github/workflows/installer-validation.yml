@@ -165,3 +165,91 @@ jobs:
           grep -Fq 'install_apt_package "$selected_target" true' debup-pkg/usr/local/bin/debup
           grep -Fq 'Only GitHub release repositories are supported by debup' scripts/sync_catalog.sh
           ! grep -Fq 'direct_download' scripts/sync_catalog.sh
+
+  compatibility-matrix:
+    name: Compatibility (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 12
+            image: debian:12
+          - name: Debian 13
+            image: debian:13
+          - name: Ubuntu 22.04
+            image: ubuntu:22.04
+          - name: Ubuntu 24.04
+            image: ubuntu:24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime and package build dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            bash ca-certificates curl dpkg-dev git jq
+
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n installer.sh
+          bash -n scripts/sync_catalog.sh
+          bash -n tests/test_sync_catalog.sh
+          bash -n tests/test_search.sh
+          bash -n tests/test_package_validation.sh
+          bash -n tests/test_api_cache.sh
+          bash -n tests/test_package_scripts.sh
+          bash -n debup-pkg/DEBIAN/postinst
+          bash -n debup-pkg/DEBIAN/postrm
+          bash -n debup-pkg/usr/local/bin/debup
+          bash -n debup-pkg/usr/local/bin/dbp
+          bash -n debup-pkg/usr/local/share/debup/api_cache.sh
+          bash -n debup-pkg/usr/local/share/debup/search.sh
+          bash -n debup-pkg/usr/local/share/debup/package_validation.sh
+
+      - name: Run regression suites
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash tests/test_package_validation.sh
+          bash tests/test_api_cache.sh
+          bash tests/test_search.sh
+          bash tests/test_sync_catalog.sh
+          bash tests/test_package_scripts.sh
+          cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+      - name: Build, install, and purge the DEB package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          work_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$work_dir"' EXIT
+          cp -a debup-pkg "$work_dir/debup-pkg"
+          chmod 0755 \
+            "$work_dir/debup-pkg/DEBIAN/postinst" \
+            "$work_dir/debup-pkg/DEBIAN/postrm" \
+            "$work_dir/debup-pkg/usr/local/bin/debup" \
+            "$work_dir/debup-pkg/usr/local/bin/dbp"
+
+          package="$work_dir/debup-ci.deb"
+          dpkg-deb --build --root-owner-group "$work_dir/debup-pkg" "$package"
+          [[ "$(dpkg-deb -f "$package" Package)" == "debup" ]]
+          [[ "$(dpkg-deb -f "$package" Architecture)" == "all" ]]
+          dpkg-deb --contents "$package" >/dev/null
+
+          dpkg -i "$package"
+          grep -Fxq 'debup|Ruraam/debup' /etc/debup/sources.list
+          printf 'preserve this user file\n' > /etc/debup/custom.conf
+          dpkg --purge debup
+          [[ -f /etc/debup/custom.conf ]]
+          rm -f /etc/debup/custom.conf
+          rmdir /etc/debup
