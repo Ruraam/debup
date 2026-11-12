@@ -261,3 +261,83 @@ jobs:
           [[ -f /etc/debup/custom.conf ]]
           rm -f /etc/debup/custom.conf
           rmdir /etc/debup
+
+  emulated-multiarch:
+    name: Emulated (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 12 arm64
+            image: debian:12
+            platform: linux/arm64
+          - name: Debian 13 arm64
+            image: debian:13
+            platform: linux/arm64
+          - name: Debian 12 armhf
+            image: debian:12
+            platform: linux/arm/v7
+          - name: Debian 13 armhf
+            image: debian:13
+            platform: linux/arm/v7
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable QEMU emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64,arm
+
+      - name: Run regression, package build, install, and purge tests
+        shell: bash
+        env:
+          IMAGE: ${{ matrix.image }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --platform "$PLATFORM" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            "$IMAGE" bash -lc '
+              set -Eeuo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends bash curl dpkg-dev git jq
+
+              bash -n installer.sh
+              bash -n tests/test_package_validation.sh
+              bash -n tests/test_api_cache.sh
+              bash -n tests/test_search.sh
+              bash -n tests/test_sync_catalog.sh
+              bash -n tests/test_package_scripts.sh
+              bash -n debup-pkg/DEBIAN/postinst
+              bash -n debup-pkg/DEBIAN/postrm
+              bash -n debup-pkg/usr/local/bin/debup
+              bash -n debup-pkg/usr/local/bin/dbp
+
+              bash tests/test_package_validation.sh
+              bash tests/test_api_cache.sh
+              bash tests/test_search.sh
+              bash tests/test_sync_catalog.sh
+              bash tests/test_package_scripts.sh
+              cmp -s debup-pkg/usr/local/bin/debup debup-pkg/usr/local/bin/dbp
+
+              work_dir="$(mktemp -d)"
+              trap "rm -rf -- \"$work_dir\"" EXIT
+              cp -a debup-pkg "$work_dir/debup-pkg"
+              chmod 0755 "$work_dir/debup-pkg/DEBIAN/postinst" "$work_dir/debup-pkg/DEBIAN/postrm"
+              chmod 0755 "$work_dir/debup-pkg/usr/local/bin/debup" "$work_dir/debup-pkg/usr/local/bin/dbp"
+              package="$work_dir/debup-ci.deb"
+              dpkg-deb --build --root-owner-group "$work_dir/debup-pkg" "$package"
+              test "$(dpkg-deb -f "$package" Architecture)" = all
+              dpkg -i "$package"
+              grep -Fxq "debup|Ruraam/debup" /etc/debup/sources.list
+              printf "keep me\n" > /etc/debup/custom.conf
+              dpkg --purge debup
+              test -f /etc/debup/custom.conf
+              rm -f /etc/debup/custom.conf
+              rmdir /etc/debup
+            '
