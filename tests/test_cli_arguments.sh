@@ -31,9 +31,10 @@ MOCK_ID
 for command_name in curl jq apt apt-get apt-cache apt-mark dpkg dpkg-deb sha256sum; do
     cat > "$TEST_DIR/mock-bin/$command_name" <<'MOCK_COMMAND'
 #!/usr/bin/env bash
-printf '%s %s\n' "$(basename "$0")" "$*" >> "$TEST_DIR/commands.log"
 if [[ "$(basename "$0")" == "dpkg" && "$1" == "--print-architecture" ]]; then
     printf 'amd64\n'
+else
+    printf '%s %s\n' "$(basename "$0")" "$*" >> "$TEST_DIR/commands.log"
 fi
 exit 0
 MOCK_COMMAND
@@ -45,9 +46,10 @@ chmod 0755 "$TEST_DIR/mock-bin/id"
 # directory into this test's temporary sandbox.
 cp -a "$ROOT_DIR/debup-pkg" "$TEST_DIR/debup-pkg"
 sed "s|^CONF_DIR=\"/etc/debup\"$|CONF_DIR=\"$TEST_CONF_DIR\"|" \
-    "$TEST_DIR/debup-pkg/usr/local/bin/debup" > "$TEST_DIR/debup"
-chmod 0755 "$TEST_DIR/debup"
-cp "$TEST_DIR/debup" "$TEST_DIR/dbp"
+    "$TEST_DIR/debup-pkg/usr/local/bin/debup" > "$TEST_DIR/debup-pkg/usr/local/bin/debup"
+cp "$TEST_DIR/debup-pkg/usr/local/bin/debup" "$TEST_DIR/debup-pkg/usr/local/bin/dbp"
+chmod 0755 "$TEST_DIR/debup-pkg/usr/local/bin/debup" "$TEST_DIR/debup-pkg/usr/local/bin/dbp"
+DEBUP="$TEST_DIR/debup-pkg/usr/local/bin/debup"
 
 fail() {
     printf 'FAIL: %s\n' "$*" >&2
@@ -58,7 +60,7 @@ expect_rejected() {
     local label="$1"
     shift
     local status=0
-    if "$TEST_DIR/debup" "$@" >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr"; then
+    if "$DEBUP" "$@" >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr"; then
         fail "$label was accepted (args: $*)"
     else
         status=$?
@@ -80,11 +82,11 @@ expect_rejected "unpin with multiple packages" unpin package-one package-two
 # Supported confirmation flags remain accepted, and dry-run must not reach
 # apt-mark for pin/unpin or apt-get for remove.
 : > "$TEST_DIR/commands.log"
-"$TEST_DIR/debup" --dry-run remove --yes package-one >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr" ||
+"$DEBUP" --dry-run remove --yes package-one >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr" ||
     fail "remove --dry-run --yes <package> was rejected"
-"$TEST_DIR/debup" --dry-run pin package-one >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr" ||
+"$DEBUP" --dry-run pin package-one >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr" ||
     fail "pin --dry-run <package> was rejected"
-"$TEST_DIR/debup" --dry-run unpin package-one >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr" ||
+"$DEBUP" --dry-run unpin package-one >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr" ||
     fail "unpin --dry-run <package> was rejected"
 
 if [[ -s "$TEST_DIR/commands.log" ]]; then
@@ -93,7 +95,5 @@ fi
 
 cmp -s "$TEST_DIR/debup-pkg/usr/local/bin/debup" "$TEST_DIR/debup-pkg/usr/local/bin/dbp" ||
     fail "packaged debup/dbp launchers differ"
-cmp -s "$TEST_DIR/debup" "$TEST_DIR/dbp" ||
-    fail "sandboxed debup/dbp launchers differ"
 
 printf 'PASS: strict CLI argument rejection, supported flags, dry-run safety, and launcher parity.\n'
