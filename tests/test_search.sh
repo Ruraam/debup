@@ -11,25 +11,39 @@ trap 'rm -rf -- "$TEST_DIR"' EXIT
 CATALOG="${TEST_DIR}/curated_db.txt"
 
 cat > "$CATALOG" <<'EOF'
-alpha-app|github|Acme/Alpha
+alpha-app|github|Acme/Alpha|alpha-deb
 shared-tool|github|Acme/Shared
 alpha-cli|github|Acme/Alpha
 direct-alpha|direct|https://example.org/alpha.deb
 malformed|github
 invalid-repo|github|not a valid repository
 uppercase-name|GITHUB|Acme/Uppercase
+invalid-package-map|github|Acme/Invalid|INVALID_NAME
+extra-field|github|Acme/Extra|valid-name|unexpected
 EOF
 
 actual="$(catalog_search_repositories "$CATALOG" "ALPHA")"
-expected='Acme/Alpha|alpha-app'
+expected='Acme/Alpha|alpha-app|alpha-deb'
 [[ "$actual" == "$expected" ]] || {
     printf 'FAIL: case-insensitive matching or repository deduplication failed\nExpected: %s\nActual: %s\n' "$expected" "$actual" >&2
     exit 1
 }
 
 actual="$(catalog_search_repositories "$CATALOG" "shared")"
-[[ "$actual" == 'Acme/Shared|shared-tool' ]] || {
+[[ "$actual" == 'Acme/Shared|shared-tool|' ]] || {
     printf 'FAIL: repository-name matching failed: %s\n' "$actual" >&2
+    exit 1
+}
+
+actual="$(catalog_search_repositories "$CATALOG" "shared-tool")"
+[[ "$actual" == 'Acme/Shared|shared-tool|' ]] || {
+    printf 'FAIL: legacy three-field entries must keep an empty expected package identity: %s\\n' "$actual" >&2
+    exit 1
+}
+
+actual="$(catalog_search_repositories "$CATALOG" "invalid-package-map")"
+[[ -z "$actual" ]] || {
+    printf 'FAIL: invalid Debian package identity mapping was accepted: %s\\n' "$actual" >&2
     exit 1
 }
 
