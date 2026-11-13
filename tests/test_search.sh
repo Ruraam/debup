@@ -37,7 +37,7 @@ actual="$(catalog_search_repositories "$CATALOG" "shared")"
 
 actual="$(catalog_search_repositories "$CATALOG" "shared-tool")"
 [[ "$actual" == 'Acme/Shared|shared-tool|' ]] || {
-    printf 'FAIL: legacy three-field entries must keep an empty expected package identity: %s\\n' "$actual" >&2
+    printf 'FAIL: legacy three-field entries must keep an empty expected package identity: %s\n' "$actual" >&2
     exit 1
 }
 
