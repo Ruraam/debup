@@ -963,6 +963,7 @@ debup_search() {
     local -a global_types=()
     local -a global_release_ids=()
     local -a global_assets=()
+    local -a global_expected_packages=()
     local display_idx=1
     local apt_results=""
     local apt_search_failed=false
@@ -987,6 +988,7 @@ debup_search() {
             global_types[display_idx]="APT"
             global_release_ids[display_idx]=""
             global_assets[display_idx]=""
+            global_expected_packages[display_idx]=""
 
             printf "${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${GRAY}(APT)${NC}\n     ${GRAY}%s${NC}\n" \
                 "$display_idx" "$apt_pkg" "${apt_desc:0:70}"
@@ -1004,6 +1006,7 @@ debup_search() {
     local -a candidate_repos=()
     local -a candidate_stars=()
     local -a candidate_descs=()
+    local -a candidate_expected_packages=()
     local -A seen_repos=()
     local catalog_file="${SCRIPT_DIR}/../share/debup/curated_db.txt"
     local catalog_entries=""
@@ -1012,8 +1015,8 @@ debup_search() {
         catalog_entries=$(catalog_search_repositories "$catalog_file" "$query") || catalog_entries=""
     fi
 
-    local catalog_repo catalog_package repo_key
-    while IFS='|' read -r catalog_repo catalog_package; do
+    local catalog_repo catalog_package catalog_expected_package repo_key
+    while IFS='|' read -r catalog_repo catalog_package catalog_expected_package; do
         [ -n "$catalog_repo" ] || continue
         repo_key="${catalog_repo,,}"
         [ -n "${seen_repos[$repo_key]+present}" ] && continue
@@ -1021,6 +1024,7 @@ debup_search() {
         candidate_repos+=("$catalog_repo")
         candidate_stars+=("-")
         candidate_descs+=("Curated package: $catalog_package")
+        candidate_expected_packages+=("$catalog_expected_package")
     done <<< "$catalog_entries"
 
     local raw_results=""
@@ -1051,6 +1055,7 @@ debup_search() {
                 candidate_repos+=("$repo_name")
                 candidate_stars+=("$stars")
                 candidate_descs+=("$description")
+                candidate_expected_packages+=("")
             done
         else
             github_search_failed=true
@@ -1074,11 +1079,12 @@ debup_search() {
         local gh_valid=0
         local release_check_failed=0
         local candidate_index=0
-        local candidate_repo candidate_stars_value candidate_desc check_release deb_assets compatible_debs chosen_asset release_id release_tag
+        local candidate_repo candidate_stars_value candidate_desc candidate_expected_package check_release deb_assets compatible_debs chosen_asset release_id release_tag
 
         for candidate_repo in "${candidate_repos[@]}"; do
             candidate_stars_value="${candidate_stars[$candidate_index]}"
             candidate_desc="${candidate_descs[$candidate_index]}"
+            candidate_expected_package="${candidate_expected_packages[$candidate_index]}"
             candidate_index=$((candidate_index + 1))
 
             if ! check_release=$(fetch_github_api "repos/${candidate_repo}/releases/latest" 10); then
@@ -1110,6 +1116,7 @@ debup_search() {
                 global_types[display_idx]="GH"
                 global_release_ids[display_idx]="$release_id"
                 global_assets[display_idx]="$chosen_asset"
+                global_expected_packages[display_idx]="$candidate_expected_package"
 
                 if [ "$candidate_stars_value" = "-" ]; then
                     printf " ${YELLOW}[%d]${NC} ${BOLD}%-35s${NC} ${CYAN}(curated)${NC}\n     ${GRAY}%s${NC}\n" \
@@ -1175,10 +1182,11 @@ debup_search() {
             local selected_repo="$selected_target"
             local selected_release_id="${global_release_ids[choice]}"
             local selected_asset="${global_assets[choice]}"
+            local selected_expected_package="${global_expected_packages[choice]}"
             printf "${CYAN}%b${NC} ${GREEN}%s${NC}...\n" "$(printf "$MSG_INSPECTING_ASSETS" "")" "$selected_repo"
             printf "${CYAN}Selected release ID: %s; asset: %s${NC}\n" "$selected_release_id" "$selected_asset"
 
-            check_and_update "$selected_repo" "" false "$selected_release_id" "$selected_asset"
+            check_and_update "$selected_repo" "$selected_expected_package" false "$selected_release_id" "$selected_asset"
             local selected_install_status=$?
             if [ "$selected_install_status" -eq 1 ]; then
                 install_failed=1

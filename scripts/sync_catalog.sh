@@ -41,6 +41,19 @@ readonly PACKAGE_DIR="${WORK_DIR}/deb-get/01-main/packages"
 
 printf '[*] Parsing package recipes...\n'
 
+# Preserve explicit Debian Package: identity mappings across catalog refreshes.
+declare -A expected_package_mappings=()
+if [[ -r "$CATALOG_FILE" ]]; then
+    while IFS='|' read -r existing_package existing_provider existing_repo existing_expected extra || [[ -n "${existing_package:-}" ]]; do
+        [[ -z "${extra:-}" &&
+           "$existing_provider" == "github" &&
+           "$existing_package" =~ ^[a-z0-9][a-z0-9+.-]*$ &&
+           "$existing_repo" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ &&
+           "$existing_expected" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || continue
+        expected_package_mappings["$existing_package"]="${existing_repo}|${existing_expected}"
+    done < "$CATALOG_FILE"
+fi
+
 shopt -s nullglob
 recipe_files=("${PACKAGE_DIR}"/*)
 shopt -u nullglob
@@ -49,6 +62,7 @@ shopt -u nullglob
 for recipe in "${recipe_files[@]}"; do
     [[ -f "$recipe" ]] || continue
     package_name="$(basename -- "$recipe")"
+    [[ "$package_name" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || continue
 
     # Only accept literal, quoted upstream values. Dynamic shell expressions
     # are intentionally ignored instead of being evaluated.
@@ -65,7 +79,13 @@ for recipe in "${recipe_files[@]}"; do
     ' "$recipe")"
 
     if [[ -n "$github_repo" && "$github_repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-        printf '%s|github|%s\n' "$package_name" "$github_repo" >> "$TMP_CATALOG"
+        mapped_identity="${expected_package_mappings[$package_name]:-}"
+        if [[ "$mapped_identity" == "${github_repo}|"* ]]; then
+            expected_deb_package="${mapped_identity#*|}"
+            printf '%s|github|%s|%s\n' "$package_name" "$github_repo" "$expected_deb_package" >> "$TMP_CATALOG"
+        else
+            printf '%s|github|%s\n' "$package_name" "$github_repo" >> "$TMP_CATALOG"
+        fi
         continue
     fi
 
@@ -84,14 +104,15 @@ fi
 
 # Validate every generated record before replacing the tracked catalog.
 awk -F'|' '
-    NF != 3 || $1 !~ /^[a-z0-9][a-z0-9+.-]*$/ || $2 != "github" || $3 !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/ {
+    (NF != 3 && NF != 4) || $1 !~ /^[a-z0-9][a-z0-9+.-]*$/ || $2 != "github" || $3 !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/ || (NF == 4 && $4 !~ /^[a-z0-9][a-z0-9+.-]*$/) {
         exit 1
     }
-    seen[$1] && seen[$1] != $3 {
+    identity = $3 "|" (NF == 4 ? $4 : "")
+    seen[$1] && seen[$1] != identity {
         exit 1
     }
     {
-        seen[$1] = $3
+        seen[$1] = identity
     }
 ' "$TMP_CATALOG" || die "Generated catalog failed validation or contains ambiguous package names."
 
