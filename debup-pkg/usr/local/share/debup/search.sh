@@ -13,7 +13,7 @@ catalog_search_repositories() {
         BEGIN {
             query = tolower(query)
         }
-        NF != 3 || $2 != "github" {
+        (NF != 3 && NF != 4) || $2 != "github" {
             next
         }
         $1 !~ /^[a-z0-9][a-z0-9+.-]*$/ {
@@ -22,12 +22,16 @@ catalog_search_repositories() {
         $3 !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/ {
             next
         }
+        NF == 4 && $4 !~ /^[a-z0-9][a-z0-9+.-]*$/ {
+            next
+        }
         {
             package_name = tolower($1)
             repository = tolower($3)
             if (index(package_name, query) || index(repository, query)) {
                 if (!seen[repository]++) {
-                    print $3 "|" $1
+                    expected_package = (NF == 4 ? $4 : "")
+                    print $3 "|" $1 "|" expected_package
                     count++
                     if (count >= 10) {
                         exit
