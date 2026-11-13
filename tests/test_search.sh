@@ -43,7 +43,7 @@ actual="$(catalog_search_repositories "$CATALOG" "shared-tool")"
 
 actual="$(catalog_search_repositories "$CATALOG" "invalid-package-map")"
 [[ -z "$actual" ]] || {
-    printf 'FAIL: invalid Debian package identity mapping was accepted: %s\\n' "$actual" >&2
+    printf 'FAIL: invalid Debian package identity mapping was accepted: %s\n' "$actual" >&2
     exit 1
 }
 
