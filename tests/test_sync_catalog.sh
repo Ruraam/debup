@@ -45,12 +45,13 @@ if MOCK_GIT_FAIL=1 "${REPO_DIR}/scripts/sync_catalog.sh" >/dev/null 2>&1; then
     printf 'FAIL: expected clone failure\n' >&2
     exit 1
 fi
-[[ "$(cat "$CATALOG")" ==  || {
+expected_preserved=$'preserve|github|owner/repository\ngithub-app|github|vendor/github-app|github-app-deb'
+[[ "$(cat "$CATALOG")" == "$expected_preserved" ]] || {
     printf 'FAIL: existing catalog was modified after clone failure\n' >&2
     exit 1
 }
 
-# Successful synchronization must include literal supported entries only.
+# Successful synchronization must include literal supported entries and preserve explicit mappings.
 MOCK_GIT_FAIL=0 "${REPO_DIR}/scripts/sync_catalog.sh" >/dev/null
 expected='github-app|github|vendor/github-app|github-app-deb'
 actual="$(cat "$CATALOG")"
@@ -59,19 +60,4 @@ actual="$(cat "$CATALOG")"
     exit 1
 }
 
-printf 'PASS: catalog generation, filtering, sorting, and failure preservation\n'
-preserve|github|owner/repository\ngithub-app|github|vendor/github-app|github-app-deb' ]] || {
-    printf 'FAIL: existing catalog was modified after clone failure\n' >&2
-    exit 1
-}
-
-# Successful synchronization must include literal supported entries only.
-MOCK_GIT_FAIL=0 "${REPO_DIR}/scripts/sync_catalog.sh" >/dev/null
-expected='github-app|github|vendor/github-app'
-actual="$(cat "$CATALOG")"
-[[ "$actual" == "$expected" ]] || {
-    printf 'FAIL: unexpected generated catalog\nExpected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
-    exit 1
-}
-
-printf 'PASS: catalog generation, filtering, sorting, and failure preservation\n'
+printf 'PASS: catalog generation, filtering, sorting, mapping preservation, and failure preservation\n'
