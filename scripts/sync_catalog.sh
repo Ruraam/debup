@@ -62,6 +62,7 @@ shopt -u nullglob
 for recipe in "${recipe_files[@]}"; do
     [[ -f "$recipe" ]] || continue
     package_name="$(basename -- "$recipe")"
+    [[ "$package_name" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || continue
 
     # Only accept literal, quoted upstream values. Dynamic shell expressions
     # are intentionally ignored instead of being evaluated.
@@ -106,11 +107,12 @@ awk -F'|' '
     (NF != 3 && NF != 4) || $1 !~ /^[a-z0-9][a-z0-9+.-]*$/ || $2 != "github" || $3 !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/ || (NF == 4 && $4 !~ /^[a-z0-9][a-z0-9+.-]*$/) {
         exit 1
     }
-    seen[$1] && seen[$1] != $3 {
+    identity = $3 "|" (NF == 4 ? $4 : "")
+    seen[$1] && seen[$1] != identity {
         exit 1
     }
     {
-        seen[$1] = $3
+        seen[$1] = identity
     }
 ' "$TMP_CATALOG" || die "Generated catalog failed validation or contains ambiguous package names."
 
